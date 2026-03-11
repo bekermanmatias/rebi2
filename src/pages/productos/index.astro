@@ -10,15 +10,53 @@ const [categories, products] = await Promise.all([
 ---
 
 <Layout
-  title="Productos | Corralón"
-  description="Catálogo de materiales de construcción. Obra gruesa, terminaciones y herramientas."
+  title="Catálogo de Materiales | Rebi Construcciones"
+  description="Explorá nuestro catálogo completo de materiales de construcción. Obra gruesa, terminaciones, herramientas y más."
 >
-  <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-stone-900">Catálogo de productos</h1>
-      <p class="mt-2 text-stone-600">Filtrá por categoría o buscá por nombre</p>
-    </div>
+  <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <!-- Breadcrumbs -->
+    <nav class="mb-6 text-sm text-gray-500">
+      <a href="/" class="transition-colors hover:text-red-600">
+        <svg class="inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+        </svg>
+        Inicio
+      </a>
+      <span class="mx-2">&gt;</span>
+      <span class="font-medium text-gray-900">Catálogo de Materiales</span>
+    </nav>
 
     <CatalogWithFilters client:load products={products} categories={categories} />
   </div>
+
+  <!-- CTA Banner -->
+  <section class="bg-gray-900 py-12 sm:py-16">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col items-center justify-between gap-6 md:flex-row">
+        <div>
+          <h2 class="text-2xl font-extrabold text-white sm:text-3xl">¿Necesitás un presupuesto a medida?</h2>
+          <p class="mt-2 text-gray-400">Nuestros asesores técnicos te ayudan a calcular los materiales para tu obra.</p>
+        </div>
+        <div class="flex flex-wrap gap-4">
+          <a
+            href="#"
+            class="inline-flex items-center gap-2 rounded-lg bg-[var(--color-rebi-red)] px-6 py-3 font-semibold text-white transition-colors hover:bg-red-700"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Solicitar cotización
+          </a>
+          <a
+            href={`https://wa.me/${import.meta.env.PUBLIC_WHATSAPP_NUMBER ?? '5491112345678'}?text=${encodeURIComponent('Hola, necesito un presupuesto')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 rounded-lg border-2 border-white px-6 py-3 font-semibold text-white transition-colors hover:bg-white hover:text-gray-900"
+          >
+            WhatsApp Ventas
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
 </Layout>

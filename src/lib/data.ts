@@ -1,14 +1,11 @@
-/**
- * Capa de datos: usa Supabase si está configurado, sino datos mock.
- */
 import {
   supabase,
   getProducts as getProductsFromSupabase,
   getCategories as getCategoriesFromSupabase,
   getProductBySlug as getProductBySlugFromSupabase,
 } from './supabase';
-import { mockCategories, mockProducts } from './mockData';
-import type { Product, Category } from '../types';
+import { mockCategories, mockProducts, mockBanners } from './mockData';
+import type { Product, Category, Banner } from '../types';
 
 export async function getCategories(): Promise<Category[]> {
   if (supabase) return getCategoriesFromSupabase();
@@ -41,4 +38,8 @@ export async function getProducts(options?: {
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   if (supabase) return getProductBySlugFromSupabase(slug);
   return mockProducts.find((p) => p.slug === slug) ?? null;
+}
+
+export async function getBanners(): Promise<Banner[]> {
+  return mockBanners;
 }

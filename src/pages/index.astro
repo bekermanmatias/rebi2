@@ -1,115 +1,207 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import ProductCard from '../components/ProductCard.astro';
-import { getCategories, getProducts } from '../lib/data';
+import OffersBanner from '../components/OffersBanner';
+import RecentlyViewed from '../components/RecentlyViewed';
+import { getCategories, getProducts, getBanners } from '../lib/data';
 
-const whatsapp = import.meta.env.PUBLIC_WHATSAPP_NUMBER ?? '5491112345678';
-const whatsappConsulta = `https://wa.me/${whatsapp}?text=${encodeURIComponent('Hola, quisiera consultar sobre productos')}`;
-const whatsappAsesoria = `https://wa.me/${whatsapp}?text=${encodeURIComponent('Hola, necesito asesoramiento para mi obra')}`;
+const categories = await getCategories();
+const products = await getProducts({ limit: 4 });
+const banners = await getBanners();
+
+const categoryIcons: Record<string, string> = {
+  construction: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2 22h20M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2z"/></svg>`,
+  paintbrush: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42"/></svg>`,
+  wrench: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"/></svg>`,
+  droplet: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a8 8 0 008-8c0-4.5-8-13-8-13S4 8.5 4 13a8 8 0 008 8z"/></svg>`,
+  zap: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>`,
+  palette: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z"/></svg>`,
+  grid: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>`,
+  home: `<svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>`,
+};
 ---
 
 <Layout
-  title="Corralón - Materiales de construcción"
-  description="Tu corralón de confianza. Materiales de obra gruesa, terminaciones y herramientas. Cotizá por WhatsApp."
+  title="Rebi Construcciones - Materiales para tu obra"
+  description="Referentes en la comercialización de materiales para la construcción. Calidad, servicio y compromiso con cada obra."
 >
-  <section class="relative overflow-hidden bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 px-4 py-24 text-white sm:px-6 lg:px-8">
-    <div class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.03\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-40" />
-    <div class="relative mx-auto max-w-7xl">
-      <div class="max-w-2xl">
-        <h1 class="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-          Materiales de construcción para tu obra
-        </h1>
-        <p class="mt-6 text-lg text-stone-300">
-          Obra gruesa, terminaciones y herramientas. Cotizá por WhatsApp y recibí respuesta al instante.
-        </p>
-        <div class="mt-10 flex flex-wrap gap-4">
-          <a href="/productos" class="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 font-semibold text-stone-900 transition-colors hover:bg-amber-400">
-            Ver catálogo
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
-          </a>
+  <!-- Category icons strip -->
+  <section class="border-b border-gray-200 bg-white">
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div class="flex items-center gap-6 overflow-x-auto pb-2 scrollbar-hide sm:justify-center sm:gap-8 lg:gap-12">
+        {categories.map((cat) => (
           <a
-            href={whatsappConsulta}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="inline-flex items-center gap-2 rounded-lg border-2 border-stone-500 px-6 py-3 font-semibold text-white transition-colors hover:border-stone-400 hover:bg-stone-800"
+            href={`/productos?categoria=${cat.slug}`}
+            class="group flex shrink-0 flex-col items-center gap-2 text-center"
           >
-            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-            </svg>
-            Consultar por WhatsApp
+            <div class="flex h-14 w-14 items-center justify-center rounded-full border-2 border-gray-200 text-gray-500 transition-all group-hover:border-red-500 group-hover:bg-red-50 group-hover:text-red-600 sm:h-16 sm:w-16">
+              <Fragment set:html={categoryIcons[cat.icon ?? 'construction'] ?? categoryIcons.construction} />
+            </div>
+            <span class="text-xs font-semibold uppercase tracking-wide text-gray-600 group-hover:text-red-600">
+              {cat.name}
+            </span>
           </a>
-        </div>
+        ))}
       </div>
     </div>
   </section>
 
-  <section class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-    <h2 class="text-2xl font-bold text-stone-900 sm:text-3xl">Categorías</h2>
-    <p class="mt-2 text-stone-600">Encontrá todo lo que necesitás para tu proyecto</p>
-    <div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {await getCategories().then((cats) =>
-        cats.map((cat) => (
-          <a
-            href={`/productos?categoria=${cat.slug}`}
-            class="group flex flex-col overflow-hidden rounded-xl border border-stone-200 bg-white p-6 shadow-sm transition-all hover:border-amber-300 hover:shadow-md"
-          >
-            <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-100 text-amber-600 transition-colors group-hover:bg-amber-200">
-              <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-            </div>
-            <h3 class="mt-4 font-semibold text-stone-900 group-hover:text-amber-700">{cat.name}</h3>
-            <p class="mt-1 text-sm text-stone-500">Ver productos →</p>
-          </a>
-        ))
-      )}
-    </div>
+  <!-- Offers banner carousel -->
+  <section>
+    <OffersBanner client:load banners={banners} />
   </section>
 
-  <section class="bg-white py-16">
+  <!-- Featured products -->
+  <section class="bg-gray-50 py-12 sm:py-16">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h2 class="text-2xl font-bold text-stone-900 sm:text-3xl">Productos destacados</h2>
-          <p class="mt-2 text-stone-600">Los más pedidos por nuestros clientes</p>
-        </div>
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-extrabold uppercase italic text-gray-900 sm:text-2xl">
+          Destacados de la semana
+        </h2>
         <a
           href="/productos"
-          class="inline-flex items-center gap-1 text-sm font-semibold text-amber-600 hover:text-amber-700"
+          class="flex items-center gap-1 text-sm font-semibold text-red-600 transition-colors hover:text-red-700"
         >
-          Ver todos
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          Ver todo
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </a>
       </div>
-      <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {(await getProducts({ limit: 8 })).map((product) => (
+      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
+        {products.map((product) => (
           <ProductCard product={product} />
         ))}
       </div>
     </div>
   </section>
 
-  <section class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-    <div class="rounded-2xl border border-stone-200 bg-stone-100/50 p-8 text-center sm:p-12">
-      <h2 class="text-2xl font-bold text-stone-900 sm:text-3xl">¿Necesitás asesoramiento?</h2>
-      <p class="mx-auto mt-4 max-w-xl text-stone-600">
-        Nuestro equipo te ayuda a elegir los materiales adecuados para tu obra. Escribinos por WhatsApp.
-      </p>
+  <!-- Últimos vistos -->
+  <RecentlyViewed client:load />
+
+  <!-- CTA Banner -->
+  <section class="bg-gray-900 py-12 sm:py-16">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-col items-center justify-between gap-6 md:flex-row">
+        <div>
+          <h2 class="text-2xl font-extrabold text-white sm:text-3xl">¿Necesitás un presupuesto a medida?</h2>
+          <p class="mt-2 text-gray-400">Nuestros asesores técnicos te ayudan a calcular los materiales para tu obra.</p>
+        </div>
+        <div class="flex flex-wrap gap-4">
           <a
-            href={whatsappAsesoria}
+            href="/productos"
+            class="inline-flex items-center gap-2 rounded-lg bg-[var(--color-rebi-red)] px-6 py-3 font-semibold text-white transition-colors hover:bg-red-700"
+          >
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Solicitar cotización
+          </a>
+          <a
+            href={`https://wa.me/${import.meta.env.PUBLIC_WHATSAPP_NUMBER ?? '5491112345678'}?text=${encodeURIComponent('Hola, necesito un presupuesto para mi obra')}`}
             target="_blank"
             rel="noopener noreferrer"
-        class="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-green-700"
-      >
-        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-        </svg>
-        Contactar por WhatsApp
-      </a>
+            class="inline-flex items-center gap-2 rounded-lg border-2 border-white px-6 py-3 font-semibold text-white transition-colors hover:bg-white hover:text-gray-900"
+          >
+            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+            </svg>
+            WhatsApp Ventas
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Ubicación -->
+  <section class="bg-gray-100 py-12 sm:py-16">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <h2 class="mb-8 text-xl font-extrabold uppercase text-gray-900 sm:text-2xl">
+        Nuestra ubicación
+      </h2>
+
+      <div class="grid gap-0 overflow-hidden rounded-2xl lg:grid-cols-5">
+        <!-- Mapa -->
+        <div class="lg:col-span-3">
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3284.016887889529!2d-58.38375908477038!3d-34.60373888045953!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x95bccacf0d84b5b3%3A0x5c81e72752b6b02!2sAv.+9+de+Julio%2C+Buenos+Aires!5e0!3m2!1ses-419!2sar!4v1710000000000!5m2!1ses-419!2sar"
+            width="100%"
+            height="100%"
+            style="border:0; min-height: 380px;"
+            allowfullscreen=""
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="Ubicación de Rebi Construcciones"
+            class="h-full w-full"
+          ></iframe>
+        </div>
+
+        <!-- Info card oscura -->
+        <div class="flex flex-col justify-center gap-6 bg-gray-900 p-8 lg:col-span-2 lg:p-10">
+          <!-- Dirección -->
+          <div class="flex items-start gap-4">
+            <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider text-red-500">Dirección</p>
+              <p class="mt-1 text-sm leading-relaxed text-gray-300">
+                Av. de los Trabajadores 4500,<br/>
+                B1650 San Martín, Provincia de Buenos Aires
+              </p>
+            </div>
+          </div>
+
+          <!-- Horarios -->
+          <div class="flex items-start gap-4">
+            <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider text-red-500">Horarios de atención</p>
+              <p class="mt-1 text-sm text-gray-300">Lunes a Viernes: 08:00 - 18:00 hs</p>
+              <p class="text-sm text-gray-300">Sábados: 08:00 - 13:00 hs</p>
+            </div>
+          </div>
+
+          <!-- Contacto -->
+          <div class="flex items-start gap-4">
+            <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+            </svg>
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider text-red-500">Contacto</p>
+              <p class="mt-1 text-sm text-gray-300">+54 11 4567-8990</p>
+              <p class="text-sm text-gray-300">ventas@rebiconstrucciones.com.ar</p>
+            </div>
+          </div>
+
+          <!-- Botón -->
+          <a
+            href="https://maps.google.com/?q=Av.+de+los+Trabajadores+4500+San+Martin+Buenos+Aires"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-2 inline-flex w-fit items-center gap-2 rounded-lg bg-[var(--color-rebi-red)] px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Cómo llegar
+          </a>
+        </div>
+      </div>
     </div>
   </section>
 </Layout>
+
+<style>
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+</style>

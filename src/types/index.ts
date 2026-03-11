@@ -1,14 +1,8 @@
-/**
- * Tipos alineados con el esquema de Supabase.
- * categories: id (UUID), name (string), slug (string)
- * products: id (UUID), name (string), slug (string), description (text), price (numeric, opcional),
- *           stock_status (boolean), category_id (relación), image_url (string)
- */
-
 export interface Category {
   id: string;
   name: string;
   slug: string;
+  icon?: string;
 }
 
 export interface Product {
@@ -20,11 +14,25 @@ export interface Product {
   stock_status: boolean;
   category_id: string;
   image_url: string | null;
-  /** Relación expandida (opcional) */
+  brand?: string;
+  sku?: string;
+  unit?: string;
+  images?: string[];
+  specifications?: Record<string, string>;
+  badge?: string;
   category?: Category;
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
+}
+
+export interface Banner {
+  id: string;
+  image_url: string;
+  title?: string;
+  subtitle?: string;
+  cta_text?: string;
+  cta_link?: string;
 }

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Archivo', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-rebi-red: #DC2626;
+  --color-rebi-red-dark: #B91C1C;
+  --color-rebi-red-light: #FEE2E2;
 }
