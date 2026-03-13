@@ -9,11 +9,11 @@ interface Props {
   banners: Banner[];
 }
 
-const gradients = [
-  'from-red-800 via-red-900 to-gray-900',
-  'from-gray-900 via-gray-800 to-red-900',
-  'from-red-900 via-red-800 to-orange-900',
-];
+/**
+ * Aspect ratios:
+ *   Desktop: 1920 × 400  → 24:5  (4.8:1)
+ *   Mobile:  1080 × 1080 → 1:1   (cuadrado)
+ */
 
 export default function OffersBanner({ banners }: Props) {
   if (!banners.length) return null;
@@ -28,76 +28,72 @@ export default function OffersBanner({ banners }: Props) {
         loop={banners.length > 1}
         className="offers-swiper"
       >
-        {banners.map((banner, i) => (
-          <SwiperSlide key={banner.id}>
-            {banner.image_url ? (
-              <div className="relative h-[300px] w-full sm:h-[400px] lg:h-[450px]">
-                <img
-                  src={banner.image_url}
-                  alt={banner.title ?? 'Oferta'}
-                  className="h-full w-full object-cover"
-                />
-                {banner.title && (
-                  <div className="absolute inset-0 flex items-center bg-black/30">
-                    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-                      <h2 className="text-3xl font-extrabold italic text-white sm:text-5xl lg:text-6xl">
-                        {banner.title}
-                      </h2>
-                      {banner.subtitle && (
-                        <p className="mt-4 max-w-lg text-base text-gray-200 sm:text-lg">
-                          {banner.subtitle}
-                        </p>
-                      )}
-                      {banner.cta_text && banner.cta_link && (
-                        <a
-                          href={banner.cta_link}
-                          className="mt-6 inline-block rounded-lg border-2 border-white bg-transparent px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-white hover:text-gray-900"
-                        >
-                          {banner.cta_text}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div
-                className={`relative flex h-[300px] w-full items-center bg-gradient-to-br sm:h-[400px] lg:h-[450px] ${gradients[i % gradients.length]}`}
-              >
-                <div className="absolute inset-0 opacity-10">
-                  <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <pattern id={`grid-${i}`} width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
-                      </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill={`url(#grid-${i})`} />
-                  </svg>
-                </div>
-                <div className="relative mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-                  <div className="max-w-xl">
-                    <h2 className="text-3xl font-extrabold italic text-white sm:text-5xl lg:text-6xl">
-                      {banner.title}
-                    </h2>
-                    {banner.subtitle && (
-                      <p className="mt-4 max-w-lg text-base text-gray-300 sm:text-lg">
-                        {banner.subtitle}
-                      </p>
+        {banners.map((banner) => {
+          const hasDesktop = banner.desktop_image_url;
+          const hasMobile = banner.mobile_image_url;
+          const Wrapper = banner.target_link ? 'a' : 'div';
+          const wrapperProps = banner.target_link
+            ? { href: banner.target_link }
+            : {};
+
+          return (
+            <SwiperSlide key={banner.id}>
+              <Wrapper {...wrapperProps} className="relative block w-full">
+                {hasDesktop || hasMobile ? (
+                  <>
+                    {/* Mobile: 1080×1080 (1:1) */}
+                    {hasMobile && (
+                      <img
+                        src={banner.mobile_image_url!}
+                        alt={banner.title ?? 'Banner promocional'}
+                        width={1080}
+                        height={1080}
+                        className="block aspect-square w-full object-cover sm:hidden"
+                        loading="lazy"
+                      />
                     )}
-                    {banner.cta_text && banner.cta_link && (
-                      <a
-                        href={banner.cta_link}
-                        className="mt-6 inline-block rounded-lg border-2 border-white bg-transparent px-6 py-3 text-sm font-bold uppercase tracking-wider text-white transition-colors hover:bg-white hover:text-gray-900"
-                      >
-                        {banner.cta_text}
-                      </a>
+
+                    {/* Desktop fallback on mobile when there's no mobile image */}
+                    {!hasMobile && hasDesktop && (
+                      <img
+                        src={banner.desktop_image_url!}
+                        alt={banner.title ?? 'Banner promocional'}
+                        width={1920}
+                        height={400}
+                        className="block aspect-[24/5] w-full object-cover sm:hidden"
+                        loading="lazy"
+                      />
                     )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </SwiperSlide>
-        ))}
+
+                    {/* Desktop: 1920×400 (24:5) */}
+                    {hasDesktop && (
+                      <img
+                        src={banner.desktop_image_url!}
+                        alt={banner.title ?? 'Banner promocional'}
+                        width={1920}
+                        height={400}
+                        className="hidden aspect-[24/5] w-full object-cover sm:block"
+                        loading="lazy"
+                      />
+                    )}
+
+                    {/* Desktop fallback cuando solo hay imagen mobile */}
+                    {!hasDesktop && hasMobile && (
+                      <img
+                        src={banner.mobile_image_url!}
+                        alt={banner.title ?? 'Banner promocional'}
+                        width={1080}
+                        height={1080}
+                        className="hidden aspect-[24/5] w-full object-cover sm:block"
+                        loading="lazy"
+                      />
+                    )}
+                  </>
+                ) : null}
+              </Wrapper>
+            </SwiperSlide>
+          );
+        })}
       </Swiper>
 
       <style>{`

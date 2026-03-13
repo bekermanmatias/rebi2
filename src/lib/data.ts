@@ -3,43 +3,43 @@ import {
   getProducts as getProductsFromSupabase,
   getCategories as getCategoriesFromSupabase,
   getProductBySlug as getProductBySlugFromSupabase,
+  getBrands as getBrandsFromSupabase,
+  getBanners as getBannersFromSupabase,
+  getPromoCards as getPromoCardsFromSupabase,
 } from './supabase';
-import { mockCategories, mockProducts, mockBanners } from './mockData';
-import type { Product, Category, Banner } from '../types';
+import type { Product, Category, Brand, Banner, PromoCard } from '../types';
 
 export async function getCategories(): Promise<Category[]> {
   if (supabase) return getCategoriesFromSupabase();
-  return mockCategories;
+  return [];
+}
+
+export async function getBrands(): Promise<Brand[]> {
+  if (supabase) return getBrandsFromSupabase();
+  return [];
 }
 
 export async function getProducts(options?: {
   categorySlug?: string;
+  brandSlug?: string;
   search?: string;
   limit?: number;
 }): Promise<Product[]> {
   if (supabase) return getProductsFromSupabase(options);
-  let list = [...mockProducts];
-  if (options?.categorySlug) {
-    const cat = mockCategories.find((c) => c.slug === options.categorySlug);
-    if (cat) list = list.filter((p) => p.category_id === cat.id);
-  }
-  if (options?.search?.trim()) {
-    const q = options.search.trim().toLowerCase();
-    list = list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.description?.toLowerCase().includes(q) ?? false)
-    );
-  }
-  if (options?.limit) list = list.slice(0, options.limit);
-  return list;
+  return [];
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   if (supabase) return getProductBySlugFromSupabase(slug);
-  return mockProducts.find((p) => p.slug === slug) ?? null;
+  return null;
 }
 
 export async function getBanners(): Promise<Banner[]> {
-  return mockBanners;
+  if (supabase) return getBannersFromSupabase();
+  return [];
+}
+
+export async function getPromoCards(): Promise<PromoCard[]> {
+  if (supabase) return getPromoCardsFromSupabase();
+  return [];
 }

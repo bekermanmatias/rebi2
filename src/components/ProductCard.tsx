@@ -5,26 +5,13 @@ interface Props {
   showAddToCart?: boolean;
 }
 
-const badgeColors: Record<string, string> = {
-  'OFERTA SEMANA': 'bg-red-600',
-  'ENVÍO GRATIS': 'bg-green-600',
-  'HOT SALE': 'bg-orange-500',
-  'POPULAR': 'bg-blue-600',
-};
-
 export default function ProductCard({ product, showAddToCart = true }: Props) {
-  const badgeColor = product.badge ? (badgeColors[product.badge] ?? 'bg-gray-700') : '';
+  const brandName = product.brand?.name;
+  const firstVariant = product.variants?.[0];
+  const displayUnit = firstVariant?.packaging ?? firstVariant?.size_name;
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-lg">
-      {product.badge && (
-        <span
-          className={`absolute left-3 top-3 z-10 rounded px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white ${badgeColor}`}
-        >
-          {product.badge}
-        </span>
-      )}
-
       <a href={`/producto/${product.slug}`} className="block aspect-square overflow-hidden bg-gray-100">
         {product.image_url ? (
           <img
@@ -53,8 +40,8 @@ export default function ProductCard({ product, showAddToCart = true }: Props) {
           </span>
         )}
 
-        {product.brand && (
-          <span className="mb-1 text-xs font-medium text-gray-500">{product.brand}</span>
+        {brandName && (
+          <span className="mb-1 text-xs font-medium text-gray-500">{brandName}</span>
         )}
 
         <h3 className="mb-1 text-sm font-semibold leading-tight text-gray-900 line-clamp-2">
@@ -63,9 +50,9 @@ export default function ProductCard({ product, showAddToCart = true }: Props) {
           </a>
         </h3>
 
-        {(product.brand || product.unit) && (
+        {(brandName || displayUnit) && (
           <p className="mb-3 text-xs text-gray-400">
-            {[product.brand && `Marca: ${product.brand}`, product.unit].filter(Boolean).join(' | ')}
+            {[brandName && `Marca: ${brandName}`, displayUnit].filter(Boolean).join(' | ')}
           </p>
         )}
 
@@ -77,7 +64,6 @@ export default function ProductCard({ product, showAddToCart = true }: Props) {
               data-product-id={product.id}
               data-product-slug={product.slug}
               data-product-name={product.name}
-              data-product-price={product.price ?? 0}
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path
@@ -86,7 +72,7 @@ export default function ProductCard({ product, showAddToCart = true }: Props) {
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
-              Añadir a la cotización
+              Añadir al carrito
             </button>
           </div>
         )}

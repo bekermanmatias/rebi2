@@ -16,9 +16,11 @@ function handleAddClick(e: Event) {
     name: target.dataset.productName ?? '',
     slug: target.dataset.productSlug ?? '',
     description: null,
-    price: Number(target.dataset.productPrice) || null,
-    stock_status: true,
+    price: null,
+    is_active: true,
+    weight_kg: null,
     category_id: '',
+    brand_id: null,
     image_url: null,
   };
   useCartStore.getState().addItem(product, 1);

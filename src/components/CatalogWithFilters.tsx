@@ -18,7 +18,9 @@ export default function CatalogWithFilters({ products, categories }: Props) {
 
   const brands = useMemo(() => {
     const b = new Set<string>();
-    products.forEach((p) => { if (p.brand) b.add(p.brand); });
+    products.forEach((p) => {
+      if (p.brand?.name) b.add(p.brand.name);
+    });
     return Array.from(b).sort();
   }, [products]);
 
@@ -33,11 +35,11 @@ export default function CatalogWithFilters({ products, categories }: Props) {
     }
 
     if (selectedBrands.length > 0) {
-      list = list.filter((p) => p.brand && selectedBrands.includes(p.brand));
+      list = list.filter((p) => p.brand?.name && selectedBrands.includes(p.brand.name));
     }
 
     if (stockOnly) {
-      list = list.filter((p) => p.stock_status);
+      list = list.filter((p) => p.is_active);
     }
 
     if (search.trim()) {
@@ -46,7 +48,7 @@ export default function CatalogWithFilters({ products, categories }: Props) {
         (p) =>
           p.name.toLowerCase().includes(q) ||
           (p.description?.toLowerCase().includes(q) ?? false) ||
-          (p.brand?.toLowerCase().includes(q) ?? false)
+          (p.brand?.name?.toLowerCase().includes(q) ?? false)
       );
     }
 
