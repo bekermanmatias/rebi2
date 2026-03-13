@@ -1,15 +1,16 @@
-import { useState, useMemo } from 'react';
-import type { Product, Category } from '../types';
+import { useState, useMemo, useRef } from 'react';
+import type { Product, Category, Brand } from '../types';
 import ProductCard from './ProductCard';
 
 interface Props {
   products: Product[];
   categories: Category[];
+  brandLogos?: Brand[];
 }
 
 type SortOption = 'relevance' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
 
-export default function CatalogWithFilters({ products, categories }: Props) {
+export default function CatalogWithFilters({ products, categories, brandLogos }: Props) {
   const [search, setSearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
@@ -170,8 +171,11 @@ export default function CatalogWithFilters({ products, categories }: Props) {
 
       {/* Main content */}
       <div className="flex-1">
+        {/* Brand strip (logos) */}
+        {brandLogos && brandLogos.length > 0 && <BrandStrip brands={brandLogos} />}
+
         {/* Top bar */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-600">
             Mostrando <strong>{filtered.length}</strong> resultado{filtered.length !== 1 ? 's' : ''}
           </p>
@@ -196,7 +200,7 @@ export default function CatalogWithFilters({ products, categories }: Props) {
 
         {/* Product grid */}
         {filtered.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 sm:gap-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5">
             {filtered.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
@@ -217,6 +221,61 @@ export default function CatalogWithFilters({ products, categories }: Props) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function BrandStrip({ brands }: { brands: Brand[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  function scroll(dir: 'left' | 'right') {
+    if (!scrollRef.current) return;
+    const amount = 100;
+    scrollRef.current.scrollBy({ left: dir === 'right' ? amount : -amount, behavior: 'smooth' });
+  }
+
+  return (
+    <div className="relative mb-3 -mt-8 max-w-[1045px] mr-auto">
+      <button
+        type="button"
+        onClick={() => scroll('left')}
+        className="absolute -left-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-800"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+
+      <div
+        ref={scrollRef}
+        className="flex items-center gap-3 overflow-hidden px-8 sm:gap-4"
+      >
+        {brands.map((brand) => (
+          <a
+            key={brand.id}
+            href={`/productos?marca=${brand.slug}`}
+            className="group flex shrink-0 flex-col items-center text-center"
+          >
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white p-2 transition-all group-hover:border-red-500 group-hover:shadow-sm sm:h-20 sm:w-20">
+              {brand.logo_url ? (
+                <img src={brand.logo_url} alt={brand.name} className="h-full w-full object-contain" loading="lazy" />
+              ) : (
+                <span className="text-[9px] font-bold uppercase text-gray-400">{brand.name.slice(0, 3)}</span>
+              )}
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => scroll('right')}
+        className="absolute -right-1 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-800"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
     </div>
   );
 }

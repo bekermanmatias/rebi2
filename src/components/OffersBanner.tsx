@@ -11,7 +11,7 @@ interface Props {
 
 /**
  * Aspect ratios:
- *   Desktop: 1920 × 400  → 24:5  (4.8:1)
+ *   Desktop: 1920 × 600  → 16:5  (3.2:1)
  *   Mobile:  1080 × 1080 → 1:1   (cuadrado)
  */
 
@@ -59,20 +59,20 @@ export default function OffersBanner({ banners }: Props) {
                         src={banner.desktop_image_url!}
                         alt={banner.title ?? 'Banner promocional'}
                         width={1920}
-                        height={400}
-                        className="block aspect-[24/5] w-full object-cover sm:hidden"
+                        height={600}
+                        className="block aspect-[16/5] w-full object-cover sm:hidden"
                         loading="lazy"
                       />
                     )}
 
-                    {/* Desktop: 1920×400 (24:5) */}
+                    {/* Desktop: 1920×600 (16:5) */}
                     {hasDesktop && (
                       <img
                         src={banner.desktop_image_url!}
                         alt={banner.title ?? 'Banner promocional'}
                         width={1920}
-                        height={400}
-                        className="hidden aspect-[24/5] w-full object-cover sm:block"
+                        height={600}
+                        className="hidden aspect-[16/5] w-full object-cover sm:block"
                         loading="lazy"
                       />
                     )}
@@ -84,7 +84,7 @@ export default function OffersBanner({ banners }: Props) {
                         alt={banner.title ?? 'Banner promocional'}
                         width={1080}
                         height={1080}
-                        className="hidden aspect-[24/5] w-full object-cover sm:block"
+                        className="hidden aspect-[16/5] w-full object-cover sm:block"
                         loading="lazy"
                       />
                     )}

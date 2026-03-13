@@ -21,6 +21,7 @@ export interface ProductImage {
   image_url: string;
   is_primary: boolean;
   display_order: number;
+  variant_id?: string | null;
   created_at?: string;
 }
 
@@ -64,16 +65,14 @@ export interface CartItem {
   quantity: number;
   variantId?: string;
   variantLabel?: string;
+  variantImageUrl?: string;
 }
 
 export interface PromoCard {
   id: string;
-  discount_badge: string | null;
   title: string;
-  subtitle: string | null;
   image_url: string;
   target_link: string;
-  layout_type: 'card' | 'banner';
   display_order: number;
   is_active: boolean;
   created_at?: string;

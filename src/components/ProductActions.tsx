@@ -42,6 +42,8 @@ export default function ProductActions({ product }: Props) {
     if (options.length === 1) {
       setSelectedPackaging(options[0]);
     }
+
+    window.dispatchEvent(new CustomEvent('variant-selected', { detail: variant.id }));
   }
 
   function handleSelectPackaging(pkg: string) {
@@ -67,7 +69,11 @@ export default function ProductActions({ product }: Props) {
       ? `${selectedVariantId}${selectedPackaging ? `__${selectedPackaging}` : ''}`
       : undefined;
 
-    addItem(product, quantity, variantKey, variantLabel);
+    const variantImage = selectedVariantId
+      ? product.product_images?.find((img) => img.variant_id === selectedVariantId)?.image_url
+      : undefined;
+
+    addItem(product, quantity, variantKey, variantLabel, variantImage);
     setQuantity(1);
   }
 

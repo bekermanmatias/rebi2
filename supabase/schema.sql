@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS product_images (
   image_url TEXT NOT NULL,
   is_primary BOOLEAN NOT NULL DEFAULT false,
   display_order INT NOT NULL DEFAULT 0,
+  variant_id UUID REFERENCES product_variants(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -78,17 +79,29 @@ CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_
 CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_id);
 CREATE INDEX IF NOT EXISTS idx_home_banners_order ON home_banners(display_order) WHERE is_active = true;
 
--- RLS (Row Level Security) - lectura pública
+-- RLS (Row Level Security)
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE brands ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_variants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE home_banners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE promo_cards ENABLE ROW LEVEL SECURITY;
 
+-- Lectura pública
 CREATE POLICY "Public read categories" ON categories FOR SELECT USING (true);
 CREATE POLICY "Public read brands" ON brands FOR SELECT USING (true);
 CREATE POLICY "Public read products" ON products FOR SELECT USING (true);
 CREATE POLICY "Public read product_images" ON product_images FOR SELECT USING (true);
 CREATE POLICY "Public read product_variants" ON product_variants FOR SELECT USING (true);
 CREATE POLICY "Public read home_banners" ON home_banners FOR SELECT USING (true);
+CREATE POLICY "Public read promo_cards" ON promo_cards FOR SELECT USING (true);
+
+-- Escritura (admin via anon key - temporal hasta implementar auth)
+CREATE POLICY "Public write products" ON products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write product_images" ON product_images FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write product_variants" ON product_variants FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write home_banners" ON home_banners FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write promo_cards" ON promo_cards FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write categories" ON categories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write brands" ON brands FOR ALL USING (true) WITH CHECK (true);

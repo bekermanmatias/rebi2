@@ -8,7 +8,7 @@ export default function RecentlyViewed() {
 
   return (
     <section className="bg-white py-12 sm:py-16">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-extrabold uppercase italic text-gray-900 sm:text-2xl">
             Últimos vistos

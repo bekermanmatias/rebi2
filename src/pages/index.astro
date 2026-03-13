@@ -3,15 +3,14 @@ import Layout from '../layouts/Layout.astro';
 import ProductCard from '../components/ProductCard.astro';
 import OffersBanner from '../components/OffersBanner';
 import RecentlyViewed from '../components/RecentlyViewed';
-import { getCategories, getProducts, getBanners, getPromoCards } from '../lib/data';
+import { getCategories, getProducts, getBanners, getPromoCards, getBrands } from '../lib/data';
 
 const categories = await getCategories();
 const products = await getProducts({ limit: 4 });
 const banners = await getBanners();
 const promoCards = await getPromoCards();
+const brands = await getBrands();
 
-const cards = promoCards.filter((p) => p.layout_type === 'card');
-const promoBanners = promoCards.filter((p) => p.layout_type === 'banner');
 
 const categoryIcons: Record<string, string> = {
   construction: `<svg class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2 22h20M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2z"/></svg>`,
@@ -48,166 +47,10 @@ const slugToIcon: Record<string, string> = {
     </section>
   )}
 
-  <!-- Promo cards -->
-  {promoCards.length > 0 && (
-    <section class="bg-gray-100 py-8 sm:py-10">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {cards.length > 0 && (
-          <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {cards.map((card) => (
-              <a href={card.target_link} class="group relative flex flex-col justify-end overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-1 hover:shadow-lg">
-                <img
-                  src={card.image_url}
-                  alt={card.title}
-                  class="absolute inset-0 h-full w-full object-cover"
-                  loading="lazy"
-                />
-                <div class="relative z-10 flex aspect-[4/5] flex-col justify-between bg-gradient-to-t from-black/60 via-black/20 to-transparent p-4 sm:p-5">
-                  <p class="text-xs font-semibold uppercase tracking-wide text-white/80">{card.title}</p>
-                  <div>
-                    {card.discount_badge && (
-                      <div class="inline-flex items-baseline gap-2 rounded-lg bg-white/90 px-3 py-1.5 backdrop-blur-sm">
-                        <span class="text-2xl font-black text-red-600 sm:text-3xl">{card.discount_badge}</span>
-                        <span class="text-xs font-bold uppercase text-gray-800 sm:text-sm">{card.title}</span>
-                      </div>
-                    )}
-                    {card.subtitle && (
-                      <p class="mt-2 text-[10px] font-semibold uppercase tracking-wide text-white/70 sm:text-xs">{card.subtitle}</p>
-                    )}
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-        )}
-
-        {promoBanners.map((banner) => (
-          <a href={banner.target_link} class="group mt-4 block overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg">
-            <div class="relative">
-              <img
-                src={banner.image_url}
-                alt={banner.title}
-                class="h-full w-full object-cover"
-                style="min-height: 160px; max-height: 280px;"
-                loading="lazy"
-              />
-              <div class="absolute inset-0 flex items-center justify-between bg-gradient-to-r from-black/50 to-transparent px-6 sm:px-10">
-                <div>
-                  {banner.discount_badge && (
-                    <>
-                      <p class="text-xs font-bold uppercase tracking-wider text-white/70 sm:text-sm">Hasta</p>
-                      <p class="text-5xl font-black text-white sm:text-7xl">{banner.discount_badge}</p>
-                    </>
-                  )}
-                  <p class="text-lg font-extrabold uppercase tracking-wide text-white sm:text-2xl">{banner.title}</p>
-                  {banner.subtitle && (
-                    <p class="mt-1 text-[10px] uppercase text-white/60 sm:text-xs">{banner.subtitle}</p>
-                  )}
-                </div>
-                <div class="hidden text-right sm:block">
-                  <span class="rounded-full bg-white/90 px-6 py-3 text-sm font-bold uppercase text-gray-900 shadow transition-colors group-hover:bg-white">
-                    Ver productos →
-                  </span>
-                </div>
-              </div>
-            </div>
-          </a>
-        ))}
-      </div>
-    </section>
-  )}
-
-  <!-- Grilla de promos por categoría -->
-  <section class="bg-white py-8 sm:py-10">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <h2 class="mb-6 text-lg font-extrabold text-gray-900 sm:text-xl">
-        Completá tu proyecto y ahorrá: Construcción y más
-      </h2>
-
-      <div class="grid grid-cols-2 grid-rows-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:grid-rows-2">
-        <!-- Pinturas (arriba izq) -->
-        <a href="/productos?categoria=pinturas" class="group relative overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg">
-          <img src="https://images.unsplash.com/photo-1562259949-e8e7689d7828?q=80&w=800&auto=format&fit=crop" alt="Pinturas" class="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-          <div class="relative flex aspect-[4/3] flex-col justify-end bg-gradient-to-t from-black/60 to-transparent p-4">
-            <p class="text-base font-extrabold text-white sm:text-lg">Pinturas</p>
-            <span class="mt-1 inline-block w-fit rounded bg-yellow-400 px-2 py-0.5 text-[10px] font-bold text-gray-900 sm:text-xs">Sumá $200.000 y ahorrá 20%</span>
-          </div>
-        </a>
-
-        <!-- Cerámicos (centro, ocupa 2 filas) -->
-        <a href="/productos?categoria=pisos" class="group relative overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg lg:col-start-2 lg:col-end-4 lg:row-span-2">
-          <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=1200&auto=format&fit=crop" alt="Cerámicos y porcelanatos" class="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-          <div class="relative flex aspect-[4/3] flex-col items-center justify-center bg-black/30 p-4 text-center lg:aspect-auto lg:h-full">
-            <p class="text-xl font-black text-white sm:text-3xl">Cerámicos y<br/>porcelanatos</p>
-            <span class="mt-3 inline-block rounded bg-yellow-400 px-4 py-1.5 text-xs font-bold text-gray-900 sm:text-sm">Sumá $200.000 y ahorrá 20%</span>
-          </div>
-        </a>
-
-        <!-- Ferretería y electricidad (arriba der) -->
-        <a href="/productos?categoria=electricidad" class="group relative overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg">
-          <img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=800&auto=format&fit=crop" alt="Ferretería y electricidad" class="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-          <div class="relative flex aspect-[4/3] flex-col justify-start bg-gradient-to-b from-black/60 to-transparent p-4">
-            <p class="text-base font-extrabold text-white sm:text-lg">Ferretería y<br/>electricidad</p>
-            <span class="mt-1 inline-block w-fit rounded bg-yellow-400 px-2 py-0.5 text-[10px] font-bold text-gray-900 sm:text-xs">Sumá $200.000 y ahorrá 20%</span>
-          </div>
-        </a>
-
-        <!-- Materiales de construcción (abajo izq) -->
-        <a href="/productos?categoria=obra-gruesa" class="group relative overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg">
-          <img src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=800&auto=format&fit=crop" alt="Materiales de construcción" class="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-          <div class="relative flex aspect-[4/3] flex-col justify-end bg-gradient-to-t from-black/60 to-transparent p-4">
-            <p class="text-base font-extrabold text-white sm:text-lg">Materiales de<br/>construcción</p>
-            <span class="mt-1 inline-block w-fit rounded bg-yellow-400 px-2 py-0.5 text-[10px] font-bold text-gray-900 sm:text-xs">Sumá $200.000 y ahorrá 20%</span>
-          </div>
-        </a>
-
-        <!-- Plomería (abajo der) -->
-        <a href="/productos?categoria=plomeria" class="group relative overflow-hidden rounded-2xl shadow-md transition-transform hover:-translate-y-0.5 hover:shadow-lg">
-          <img src="https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=800&auto=format&fit=crop" alt="Plomería" class="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-          <div class="relative flex aspect-[4/3] flex-col justify-end bg-gradient-to-t from-black/60 to-transparent p-4">
-            <p class="text-base font-extrabold text-white sm:text-lg">Plomería</p>
-            <span class="mt-1 inline-block w-fit rounded bg-yellow-400 px-2 py-0.5 text-[10px] font-bold text-gray-900 sm:text-xs">Sumá $200.000 y ahorrá 20%</span>
-          </div>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Category icons strip - navegación rápida -->
-  <section class="border-b border-gray-200 bg-white">
-    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div class="mb-4 flex items-center justify-between gap-4">
-        <h2 class="text-lg font-extrabold uppercase text-gray-900 sm:text-xl">
-          Categorias Destacadas
-        </h2>
-      </div>
-      <div class="flex items-center gap-6 overflow-x-auto pb-3 scrollbar-hide sm:justify-center sm:gap-8 lg:gap-12">
-        {categories.map((cat) => {
-          const iconKey = slugToIcon[cat.slug] ?? 'box';
-          return (
-            <a
-              href={`/productos?categoria=${cat.slug}`}
-              class="group flex shrink-0 flex-col items-center gap-3 text-center"
-            >
-              <div class="flex h-20 w-20 items-center justify-center rounded-full border-2 border-gray-200 bg-gray-50 text-gray-600 shadow-sm transition-all group-hover:-translate-y-0.5 group-hover:border-red-500 group-hover:bg-red-50 group-hover:text-red-600 group-hover:shadow-md sm:h-24 sm:w-24">
-                <Fragment set:html={categoryIcons[iconKey] ?? categoryIcons.box} />
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wide text-gray-700 group-hover:text-red-600">
-                {cat.name}
-              </span>
-            </a>
-          );
-        })}
-      </div>
-    </div>
-  </section>
-
-  <!-- Últimos vistos -->
-  <RecentlyViewed client:load />
 
   <!-- Featured products -->
   <section class="bg-gray-50 py-12 sm:py-16">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between">
         <h2 class="text-xl font-extrabold uppercase italic text-gray-900 sm:text-2xl">
           Destacados de la semana
@@ -230,9 +73,193 @@ const slugToIcon: Record<string, string> = {
     </div>
   </section>
 
+  <!-- Banners de categoría - solo imagen -->
+  <section class="bg-gray-100 py-6 sm:py-8">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+      <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+        <a href="/productos?categoria=pinturas" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1589939705384-5185137a7f0f?q=80&w=800&auto=format&fit=crop" alt="Pinturas" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+        </a>
+        <a href="/productos?categoria=plomeria" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=800&auto=format&fit=crop" alt="Bombas" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+        </a>
+        <a href="/productos?categoria=electricidad" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=800&auto=format&fit=crop" alt="Electricidad" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+        </a>
+        <a href="/productos?categoria=pisos" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
+          <img src="https://images.unsplash.com/photo-1615529182904-14819c35db37?q=80&w=800&auto=format&fit=crop" alt="Pisos y Revestimientos" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sección: Cerámicos y porcelanatos -->
+  <section class="bg-gray-50 py-10 sm:py-14">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+      <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-2xl font-black text-gray-900 sm:text-3xl">Cerámicos y porcelanatos</h2>
+          <p class="text-lg font-bold text-red-600 sm:text-xl">Renová con lo mejor</p>
+          <p class="mt-1 text-sm text-gray-500">Los mejores pisos, a un click de distancia.</p>
+          <a href="/productos?categoria=pisos" class="mt-3 inline-block rounded-full bg-gray-900 px-5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-gray-700">
+            Pisos y revestimientos
+          </a>
+        </div>
+        <div class="hidden overflow-hidden rounded-2xl sm:block sm:w-64 lg:w-80">
+          <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=600&auto=format&fit=crop" alt="Cerámicos y porcelanatos" class="h-40 w-full object-cover lg:h-48" loading="lazy" />
+        </div>
+      </div>
+
+      <div class="relative">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1615529182904-14819c35db37?q=80&w=400&auto=format&fit=crop" alt="Laja" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">LAJA 12 46X46 1RA x CAJA</p>
+              <p class="mt-0.5 text-xs text-gray-500">Su venta es Solo por caja cerr...</p>
+            </div>
+          </a>
+          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=400&auto=format&fit=crop" alt="Ceibo Beige" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">CEIBO BEIGE 20 36X36 1RA</p>
+              <p class="mt-0.5 text-xs text-gray-500">Su venta es Solo por caja cerr...</p>
+            </div>
+          </a>
+          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1600607687644-c7171b42498f?q=80&w=400&auto=format&fit=crop" alt="Esmeralda" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">ESMERALDA 20 36X36 1ERA</p>
+              <p class="mt-0.5 text-xs text-gray-500">Su venta es Solo por caja cerr...</p>
+            </div>
+          </a>
+          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1618220179428-22790b461013?q=80&w=400&auto=format&fit=crop" alt="Calacata" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">CALACATA BR 5 60X60 1RA</p>
+              <p class="mt-0.5 text-xs text-gray-500">Su venta es solo por caja cerr...</p>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="mt-8 text-center">
+        <a href="/productos?categoria=pisos" class="inline-flex items-center gap-2 rounded-full bg-gray-900 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-700">
+          Ver más productos
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sección: Baño -->
+  <section class="bg-white py-10 sm:py-14">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+      <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-2xl font-black text-gray-900 sm:text-3xl">Baño</h2>
+          <p class="text-lg font-bold text-red-600 sm:text-xl">Renová con lo mejor</p>
+          <p class="mt-1 text-sm text-gray-500">Diseño inteligente para tu hogar</p>
+          <a href="/productos?categoria=plomeria" class="mt-3 inline-block rounded-full bg-gray-900 px-5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-gray-700">
+            Baño
+          </a>
+        </div>
+        <div class="hidden overflow-hidden rounded-2xl sm:block sm:w-64 lg:w-80">
+          <img src="https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?q=80&w=600&auto=format&fit=crop" alt="Baño" class="h-40 w-full object-cover lg:h-48" loading="lazy" />
+        </div>
+      </div>
+
+      <div class="relative">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1620626011761-996317b8d101?q=80&w=400&auto=format&fit=crop" alt="Ducha PFR" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">DUCHA PFR - 021 (120 × 80)</p>
+              <p class="mt-0.5 text-xs text-gray-500">Medidas: 120 × 80 × 225 cm.</p>
+            </div>
+          </a>
+          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=400&auto=format&fit=crop" alt="Ducha S-3090" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">DUCHA S-3090 (100 × 100)</p>
+              <p class="mt-0.5 text-xs text-gray-500">Medidas: 1000 × 1000 × 2150</p>
+            </div>
+          </a>
+          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1564540583246-934409427776?q=80&w=400&auto=format&fit=crop" alt="Ducha PFR - 901" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">DUCHA PFR - 901 (90 × 90)</p>
+              <p class="mt-0.5 text-xs text-gray-500">Medidas: 900 × 900 × 2150 m...</p>
+            </div>
+          </a>
+          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
+              <img src="https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=400&auto=format&fit=crop" alt="Grifería Bidet" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </div>
+            <div class="mt-3">
+              <p class="text-sm font-bold text-gray-900 truncate">GRIFERIA BIDET LINEA PUEL</p>
+              <p class="mt-0.5 text-xs text-gray-500">Color: Cromo. Tipo: Monocoma...</p>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="mt-8 text-center">
+        <a href="/productos?categoria=plomeria" class="inline-flex items-center gap-2 rounded-full bg-gray-900 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-700">
+          Ver más productos
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Marcas destacadas -->
+  {brands.length > 0 && (
+    <section class="border-b border-gray-200 bg-white">
+      <div class="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
+        <div class="mb-6 flex items-center justify-between gap-4">
+          <h2 class="text-lg font-extrabold uppercase text-gray-900 sm:text-xl">
+            Nuestras Marcas
+          </h2>
+        </div>
+        <div class="flex items-center gap-6 overflow-x-auto pb-3 scrollbar-hide sm:justify-center sm:gap-8 lg:gap-10">
+          {brands.map((brand) => (
+            <a
+              href={`/productos?marca=${brand.slug}`}
+              class="group flex shrink-0 flex-col items-center gap-3 text-center"
+            >
+              <div class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-gray-200 bg-white p-2 shadow-sm transition-all group-hover:-translate-y-0.5 group-hover:border-red-500 group-hover:shadow-md sm:h-24 sm:w-24">
+                {brand.logo_url ? (
+                  <img src={brand.logo_url} alt={brand.name} class="h-full w-full object-contain" loading="lazy" />
+                ) : (
+                  <span class="text-xs font-bold text-gray-400 uppercase">{brand.name.slice(0, 3)}</span>
+                )}
+              </div>
+              <span class="text-xs font-semibold uppercase tracking-wide text-gray-700 group-hover:text-red-600">
+                {brand.name}
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
   <!-- CTA Banner -->
   <section class="bg-gray-900 py-12 sm:py-16">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
       <div class="flex flex-col items-center justify-between gap-6 md:flex-row">
         <div>
           <h2 class="text-2xl font-extrabold text-white sm:text-3xl">¿Necesitás un presupuesto a medida?</h2>
@@ -266,7 +293,7 @@ const slugToIcon: Record<string, string> = {
 
   <!-- Ubicación -->
   <section class="bg-gray-100 py-12 sm:py-16">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
       <h2 class="mb-8 text-xl font-extrabold uppercase text-gray-900 sm:text-2xl">
         Nuestra ubicación
       </h2>

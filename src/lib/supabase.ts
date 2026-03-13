@@ -38,7 +38,7 @@ const PRODUCT_SELECT = `
   *,
   category:categories(id, name, slug),
   brand:brands(id, name, slug, logo_url),
-  product_images(id, image_url, is_primary, display_order),
+  product_images(id, image_url, is_primary, display_order, variant_id),
   product_variants(id, sku, size_name, packaging, price, weight_kg, is_active)
 `;
 

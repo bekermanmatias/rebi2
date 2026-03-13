@@ -13,7 +13,7 @@ interface CartState {
   items: CartItem[];
   isOpen: boolean;
   notification: CartNotification | null;
-  addItem: (product: Product, quantity?: number, variantId?: string, variantLabel?: string) => void;
+  addItem: (product: Product, quantity?: number, variantId?: string, variantLabel?: string, variantImageUrl?: string) => void;
   removeItem: (key: string) => void;
   updateQuantity: (key: string, quantity: number) => void;
   clearCart: () => void;
@@ -33,7 +33,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   isOpen: false,
   notification: null,
 
-  addItem: (product, quantity = 1, variantId, variantLabel) => {
+  addItem: (product, quantity = 1, variantId, variantLabel, variantImageUrl) => {
     const key = itemKey(product.id, variantId);
     set((state) => {
       const existing = state.items.find(
@@ -45,7 +45,7 @@ export const useCartStore = create<CartState>((set, get) => ({
               ? { ...i, quantity: i.quantity + quantity }
               : i
           )
-        : [...state.items, { product, quantity, variantId, variantLabel }];
+        : [...state.items, { product, quantity, variantId, variantLabel, variantImageUrl }];
 
       const parts = variantLabel?.split(' — ') ?? [];
       return {

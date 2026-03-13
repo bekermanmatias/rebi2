@@ -21,11 +21,7 @@ if (!product) return Astro.redirect('/productos');
 const related = await getProducts({ categorySlug: product.category?.slug, limit: 4 });
 const relatedFiltered = related.filter((p) => p.id !== product.id).slice(0, 4);
 
-const images = product.images?.length
-  ? product.images
-  : product.image_url
-    ? [product.image_url]
-    : [];
+const productImages = product.product_images ?? [];
 
 const brandName = product.brand?.name;
 const firstVariant = product.variants?.[0];
@@ -39,7 +35,7 @@ const whatsappUrl = `https://wa.me/${whatsapp}?text=${encodeURIComponent(`Hola, 
   description={product.description ?? product.name}
 >
   <TrackProductView client:load product={product} />
-  <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+  <div class="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
     <!-- Breadcrumbs -->
     <nav class="mb-6 text-sm text-gray-500">
       <a href="/" class="transition-colors hover:text-red-600">Inicio</a>
@@ -59,7 +55,7 @@ const whatsappUrl = `https://wa.me/${whatsapp}?text=${encodeURIComponent(`Hola, 
     <div class="grid gap-8 lg:grid-cols-2 lg:gap-12">
       <!-- Gallery -->
       <div>
-        <ProductGallery client:load images={images} productName={product.name} />
+        <ProductGallery client:load productImages={productImages} fallbackUrl={product.image_url} productName={product.name} />
       </div>
 
       <!-- Info -->
