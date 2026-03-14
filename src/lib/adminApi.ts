@@ -40,6 +40,7 @@ export interface ProductRow {
   description: string | null;
   weight_kg: number | null;
   is_active: boolean;
+  is_featured?: boolean;
   category_id: string;
   brand_id: string | null;
   category?: { name: string } | null;
@@ -94,11 +95,13 @@ export async function saveProduct(product: {
   description: string | null;
   weight_kg: number | null;
   is_active: boolean;
+  is_featured?: boolean;
   category_id: string;
   brand_id: string | null;
 }): Promise<string | null> {
   const sb = getClient();
   if (!sb) return null;
+  const featured = product.is_featured === true;
   if (product.id) {
     const { error } = await sb.from('products').update({
       name: product.name,
@@ -106,6 +109,7 @@ export async function saveProduct(product: {
       description: product.description,
       weight_kg: product.weight_kg,
       is_active: product.is_active,
+      is_featured: featured,
       category_id: product.category_id,
       brand_id: product.brand_id || null,
     }).eq('id', product.id);
@@ -118,12 +122,21 @@ export async function saveProduct(product: {
       description: product.description,
       weight_kg: product.weight_kg,
       is_active: product.is_active,
+      is_featured: featured,
       category_id: product.category_id,
       brand_id: product.brand_id || null,
     }).select('id').single();
     if (error) { console.error('insertProduct:', error); return null; }
     return data?.id ?? null;
   }
+}
+
+export async function updateProductFeatured(productId: string, isFeatured: boolean): Promise<boolean> {
+  const sb = getClient();
+  if (!sb) return false;
+  const { error } = await sb.from('products').update({ is_featured: isFeatured }).eq('id', productId);
+  if (error) { console.error('updateProductFeatured:', error); return false; }
+  return true;
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {

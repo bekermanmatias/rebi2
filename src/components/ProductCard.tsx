@@ -88,6 +88,7 @@ export default function ProductCard({ product, showAddToCart = true }: Props) {
                 data-product-id={product.id}
                 data-product-slug={product.slug}
                 data-product-name={product.name}
+                data-product-image-url={product.image_url ?? ''}
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path

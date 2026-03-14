@@ -6,6 +6,7 @@ import {
   fetchBrands,
   saveProduct,
   deleteProduct,
+  updateProductFeatured,
   saveVariants,
   deleteVariant,
   saveImages,
@@ -62,6 +63,7 @@ export default function ProductManager() {
       description: '',
       weight_kg: null,
       is_active: true,
+      is_featured: false,
       category_id: categories[0]?.id ?? '',
       brand_id: null,
       product_variants: [],
@@ -78,6 +80,12 @@ export default function ProductManager() {
     if (!confirm('¿Eliminar este producto y todas sus variantes e imágenes?')) return;
     await deleteProduct(id);
     load();
+  }
+
+  async function handleToggleFeatured(p: ProductRow) {
+    const next = !(p.is_featured === true);
+    const ok = await updateProductFeatured(p.id, next);
+    if (ok) setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, is_featured: next } : x)));
   }
 
   function handleClose() {
@@ -146,6 +154,7 @@ export default function ProductManager() {
                 <th className="px-4 py-3 text-center font-semibold text-gray-600">Variantes</th>
                 <th className="px-4 py-3 text-center font-semibold text-gray-600">Imágenes</th>
                 <th className="px-4 py-3 text-center font-semibold text-gray-600">Estado</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600">Destacado</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">Acciones</th>
               </tr>
             </thead>
@@ -165,6 +174,17 @@ export default function ProductManager() {
                         {p.is_active ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleToggleFeatured(p)}
+                        title={p.is_featured ? 'Quitar de destacados' : 'Marcar como destacado'}
+                        className={`rounded p-1.5 transition-colors ${p.is_featured ? 'text-amber-500 hover:bg-amber-50' : 'text-gray-300 hover:bg-gray-100 hover:text-amber-400'}`}
+                      >
+                        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                        </svg>
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => handleEdit(p)} className="mr-2 text-sm font-medium text-blue-600 hover:text-blue-800">Editar</button>
                       <button onClick={() => handleDelete(p.id)} className="text-sm font-medium text-red-600 hover:text-red-800">Eliminar</button>
@@ -173,7 +193,7 @@ export default function ProductManager() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No se encontraron productos</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No se encontraron productos</td></tr>
               )}
             </tbody>
           </table>
@@ -203,6 +223,7 @@ function ProductForm({
     description: product.description ?? '',
     weight_kg: product.weight_kg?.toString() ?? '',
     is_active: product.is_active,
+    is_featured: product.is_featured === true,
     category_id: product.category_id,
     brand_id: product.brand_id ?? '',
   });
@@ -237,6 +258,7 @@ function ProductForm({
       description: form.description.trim() || null,
       weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
       is_active: form.is_active,
+      is_featured: form.is_featured,
       category_id: form.category_id,
       brand_id: form.brand_id || null,
     });
@@ -357,15 +379,27 @@ function ProductForm({
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={form.is_active}
-                onChange={(e) => updateField('is_active', e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-              />
-              <label htmlFor="is_active" className="text-sm font-medium text-gray-700">Producto activo</label>
+            <div className="flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={form.is_active}
+                  onChange={(e) => updateField('is_active', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                />
+                <label htmlFor="is_active" className="text-sm font-medium text-gray-700">Producto activo</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_featured"
+                  checked={form.is_featured}
+                  onChange={(e) => updateField('is_featured', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500"
+                />
+                <label htmlFor="is_featured" className="text-sm font-medium text-gray-700">Destacado (Destacados de la semana)</label>
+              </div>
             </div>
           </div>
         )}

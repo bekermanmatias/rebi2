@@ -24,6 +24,7 @@ export async function getProducts(options?: {
   brandSlug?: string;
   search?: string;
   limit?: number;
+  featured?: boolean;
 }): Promise<Product[]> {
   if (supabase) return getProductsFromSupabase(options);
   return [];

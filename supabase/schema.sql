@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS products (
   price NUMERIC(12, 2),
   weight_kg NUMERIC(10, 2),
   is_active BOOLEAN NOT NULL DEFAULT true,
+  is_featured BOOLEAN NOT NULL DEFAULT false,
   category_id UUID NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
   brand_id UUID REFERENCES brands(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now()
@@ -75,6 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id);
 CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
 CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_products_featured ON products(is_featured) WHERE is_featured = true;
 CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_id);
 CREATE INDEX IF NOT EXISTS idx_home_banners_order ON home_banners(display_order) WHERE is_active = true;

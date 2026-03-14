@@ -1,12 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import ProductCard from '../components/ProductCard.astro';
+import ProductCard from '../components/ProductCard';
 import OffersBanner from '../components/OffersBanner';
 import RecentlyViewed from '../components/RecentlyViewed';
 import { getCategories, getProducts, getBanners, getPromoCards, getBrands } from '../lib/data';
 
 const categories = await getCategories();
-const products = await getProducts({ limit: 4 });
+const featuredProducts = await getProducts({ featured: true, limit: 4 });
+const products = featuredProducts.length > 0 ? featuredProducts : await getProducts({ limit: 4 });
 const banners = await getBanners();
 const promoCards = await getPromoCards();
 const brands = await getBrands();
@@ -67,7 +68,7 @@ const slugToIcon: Record<string, string> = {
       </div>
       <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
         {products.map((product) => (
-          <ProductCard product={product} />
+          <ProductCard client:load product={product} />
         ))}
       </div>
     </div>

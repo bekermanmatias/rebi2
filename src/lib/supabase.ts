@@ -73,6 +73,7 @@ export async function getProducts(options?: {
   brandSlug?: string;
   search?: string;
   limit?: number;
+  featured?: boolean;
 }): Promise<Product[]> {
   if (!supabase) return [];
 
@@ -80,6 +81,10 @@ export async function getProducts(options?: {
     .from('products')
     .select(PRODUCT_SELECT)
     .eq('is_active', true);
+
+  if (options?.featured === true) {
+    query = query.eq('is_featured', true);
+  }
 
   if (options?.categorySlug) {
     const { data: cat } = await supabase

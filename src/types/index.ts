@@ -45,6 +45,7 @@ export interface Product {
   price: number | null;
   weight_kg: number | null;
   is_active: boolean;
+  is_featured?: boolean;
   category_id: string;
   brand_id: string | null;
   created_at?: string;
