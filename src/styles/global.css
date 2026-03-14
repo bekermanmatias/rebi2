@@ -7,6 +7,21 @@
   --color-rebi-red-light: #FEE2E2;
 }
 
+/* Cursor pointer en todo lo clickeable */
+a,
+button,
+[type="button"],
+[type="submit"],
+[type="reset"],
+[role="button"],
+[tabindex="0"]:not([disabled]),
+input[type="checkbox"],
+input[type="radio"],
+select,
+label[for] {
+  cursor: pointer;
+}
+
 @keyframes fade-in-up {
   from {
     opacity: 0;

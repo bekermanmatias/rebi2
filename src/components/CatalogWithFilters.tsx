@@ -1,6 +1,8 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import type { Product, Category, Brand } from '../types';
 import ProductCard from './ProductCard';
+
+const PAGE_SIZE = 12;
 
 interface Props {
   products: Product[];
@@ -16,6 +18,7 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SortOption>('relevance');
   const [stockOnly, setStockOnly] = useState(false);
+  const [page, setPage] = useState(1);
 
   const brands = useMemo(() => {
     const b = new Set<string>();
@@ -71,6 +74,17 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
     return list;
   }, [products, categories, search, selectedCategories, selectedBrands, sortBy, stockOnly]);
 
+  const visibleCount = page * PAGE_SIZE;
+  const paginated = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  );
+  const hasMore = visibleCount < filtered.length;
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedCategories, selectedBrands, sortBy, stockOnly]);
+
   const toggleCategory = (slug: string) => {
     setSelectedCategories((prev) =>
       prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
@@ -91,54 +105,114 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
     setStockOnly(false);
   };
 
+  const hasActiveFilters = selectedCategories.length > 0 || selectedBrands.length > 0 || stockOnly;
+
   return (
     <div className="flex flex-col gap-8 lg:flex-row">
       {/* Sidebar filters */}
       <aside className="w-full shrink-0 lg:w-64">
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900">Filtrar productos</h3>
           </div>
 
-          {/* Categories */}
+          {/* Burbujas de filtros activos */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap gap-2">
+              {selectedCategories.map((slug) => {
+                const cat = categories.find((c) => c.slug === slug);
+                return (
+                  <span
+                    key={`cat-${slug}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 shadow-sm"
+                  >
+                    {cat?.name ?? slug}
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(slug)}
+                      className="rounded-full p-0.5 text-gray-400 transition-colors hover:bg-red-100 hover:text-red-600"
+                      aria-label="Quitar filtro"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                );
+              })}
+              {selectedBrands.map((brand) => (
+                <span
+                  key={`brand-${brand}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 shadow-sm"
+                >
+                  {brand}
+                  <button
+                    type="button"
+                    onClick={() => toggleBrand(brand)}
+                    className="rounded-full p-0.5 text-gray-400 transition-colors hover:bg-red-100 hover:text-red-600"
+                    aria-label="Quitar filtro"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+              {stockOnly && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 shadow-sm">
+                  Solo con stock inmediato
+                  <button
+                    type="button"
+                    onClick={() => setStockOnly(false)}
+                    className="rounded-full p-0.5 text-gray-400 transition-colors hover:bg-red-100 hover:text-red-600"
+                    aria-label="Quitar filtro"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Categorías - clicable */}
           <div>
-            <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-700">Categorías</h4>
-            <div className="space-y-2">
+            <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">Categorías</h4>
+            <div className="space-y-0.5">
               {categories.map((cat) => (
-                <label key={cat.id} className="flex cursor-pointer items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategories.includes(cat.slug)}
-                    onChange={() => toggleCategory(cat.slug)}
-                    className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                  />
-                  <span className="text-sm text-gray-700">{cat.name}</span>
-                </label>
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => toggleCategory(cat.slug)}
+                  className="block w-full rounded px-2 py-1 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+                >
+                  {cat.name}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Brands */}
+          {/* Marcas líderes - clicable */}
           {brands.length > 0 && (
             <div>
-              <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-700">Marcas líderes</h4>
-              <div className="space-y-2">
+              <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-700">Marcas líderes</h4>
+              <div className="space-y-0.5">
                 {brands.map((brand) => (
-                  <label key={brand} className="flex cursor-pointer items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={selectedBrands.includes(brand)}
-                      onChange={() => toggleBrand(brand)}
-                      className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                    />
-                    <span className="text-sm text-gray-700">{brand}</span>
-                  </label>
+                  <button
+                    key={brand}
+                    type="button"
+                    onClick={() => toggleBrand(brand)}
+                    className="block w-full rounded px-2 py-1 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+                  >
+                    {brand}
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Stock filter */}
+          {/* Stock - clickable */}
           <div className="rounded-lg border border-red-200 bg-red-50 p-4">
             <div className="flex items-center gap-2">
               <svg className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -146,18 +220,16 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
               </svg>
               <span className="text-sm font-bold text-red-800">Envío a obra</span>
             </div>
-            <label className="mt-3 flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={stockOnly}
-                onChange={(e) => setStockOnly(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-              />
-              <span className="text-xs text-red-700">Solo con stock inmediato</span>
-            </label>
+            <button
+              type="button"
+              onClick={() => setStockOnly((prev) => !prev)}
+              className="mt-3 block w-full rounded-lg px-3 py-2 text-left text-xs text-red-700 transition-colors hover:bg-red-100"
+            >
+              Solo con stock inmediato
+            </button>
           </div>
 
-          {(selectedCategories.length > 0 || selectedBrands.length > 0 || search || stockOnly) && (
+          {hasActiveFilters && (
             <button
               type="button"
               onClick={clearAll}
@@ -171,13 +243,25 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
 
       {/* Main content */}
       <div className="flex-1">
-        {/* Brand strip (logos) */}
-        {brandLogos && brandLogos.length > 0 && <BrandStrip brands={brandLogos} />}
+        {/* Brand strip (logos): solo visible cuando no hay filtro de marca; al tocar una se aplica el filtro y se oculta */}
+        {brandLogos && brandLogos.length > 0 && selectedBrands.length === 0 && (
+          <BrandStrip brands={brandLogos} onSelectBrand={toggleBrand} />
+        )}
 
         {/* Top bar */}
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-600">
-            Mostrando <strong>{filtered.length}</strong> resultado{filtered.length !== 1 ? 's' : ''}
+            {filtered.length === 0 ? (
+              'Sin resultados'
+            ) : hasMore ? (
+              <>
+                Mostrando <strong>{paginated.length}</strong> de <strong>{filtered.length}</strong> resultado{filtered.length !== 1 ? 's' : ''}
+              </>
+            ) : (
+              <>
+                Mostrando <strong>{filtered.length}</strong> resultado{filtered.length !== 1 ? 's' : ''}
+              </>
+            )}
           </p>
           <div className="flex items-center gap-3">
             <label htmlFor="sort" className="text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -200,11 +284,26 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
 
         {/* Product grid */}
         {filtered.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5">
-            {filtered.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-5">
+              {paginated.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+
+            {/* Ver más */}
+            {hasMore && (
+              <div className="mt-10 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => p + 1)}
+                  className="rounded-lg border-2 border-gray-300 bg-white px-8 py-3 text-sm font-semibold text-gray-700 transition-colors hover:border-red-500 hover:bg-red-50 hover:text-red-700"
+                >
+                  Ver más productos
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
             <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -225,7 +324,7 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
   );
 }
 
-function BrandStrip({ brands }: { brands: Brand[] }) {
+function BrandStrip({ brands, onSelectBrand }: { brands: Brand[]; onSelectBrand: (brandName: string) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   function scroll(dir: 'left' | 'right') {
@@ -234,8 +333,10 @@ function BrandStrip({ brands }: { brands: Brand[] }) {
     scrollRef.current.scrollBy({ left: dir === 'right' ? amount : -amount, behavior: 'smooth' });
   }
 
+  if (brands.length === 0) return null;
+
   return (
-    <div className="relative mb-3 -mt-8 max-w-[1045px] mr-auto">
+    <div className="relative mb-3 -mt-8 mr-auto max-w-[1045px]">
       <button
         type="button"
         onClick={() => scroll('left')}
@@ -251,10 +352,12 @@ function BrandStrip({ brands }: { brands: Brand[] }) {
         className="flex items-center gap-3 overflow-hidden px-8 sm:gap-4"
       >
         {brands.map((brand) => (
-          <a
+          <button
             key={brand.id}
-            href={`/productos?marca=${brand.slug}`}
+            type="button"
+            onClick={() => onSelectBrand(brand.name)}
             className="group flex shrink-0 flex-col items-center text-center"
+            aria-label={`Filtrar por ${brand.name}`}
           >
             <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white p-2 transition-all group-hover:border-red-500 group-hover:shadow-sm sm:h-20 sm:w-20">
               {brand.logo_url ? (
@@ -263,7 +366,7 @@ function BrandStrip({ brands }: { brands: Brand[] }) {
                 <span className="text-[9px] font-bold uppercase text-gray-400">{brand.name.slice(0, 3)}</span>
               )}
             </div>
-          </a>
+          </button>
         ))}
       </div>
 

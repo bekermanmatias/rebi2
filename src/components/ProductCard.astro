@@ -9,8 +9,6 @@ interface Props {
 const { product, showAddToCart = true } = Astro.props;
 
 const brandName = product.brand?.name;
-const firstVariant = product.variants?.[0];
-const displayUnit = firstVariant?.packaging ?? firstVariant?.size_name;
 ---
 
 <article class="group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-lg">
@@ -32,12 +30,6 @@ const displayUnit = firstVariant?.packaging ?? firstVariant?.size_name;
   </a>
 
   <div class="flex flex-1 flex-col p-4">
-    {product.category && (
-      <span class="mb-1 text-xs font-bold uppercase tracking-wider text-red-600">
-        {product.category.name}
-      </span>
-    )}
-
     {brandName && (
       <span class="mb-1 text-xs font-medium text-gray-500">{brandName}</span>
     )}
@@ -48,10 +40,8 @@ const displayUnit = firstVariant?.packaging ?? firstVariant?.size_name;
       </a>
     </h3>
 
-    {(brandName || displayUnit) && (
-      <p class="mb-3 text-xs text-gray-400">
-        {[brandName && `Marca: ${brandName}`, displayUnit].filter(Boolean).join(' | ')}
-      </p>
+    {product.description && (
+      <p class="mb-3 line-clamp-2 text-xs text-gray-500">{product.description}</p>
     )}
 
     {showAddToCart && (

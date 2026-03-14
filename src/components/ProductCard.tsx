@@ -1,5 +1,21 @@
 import type { Product } from '../types';
 
+function parsePackagingOptions(packaging: string | null): string[] {
+  if (!packaging) return [];
+  return packaging.split('/').map((s) => s.trim()).filter(Boolean);
+}
+
+/** True si el producto requiere elegir tamaño y/o presentación en la página del producto */
+function needsVariantSelection(product: Product): boolean {
+  const activeVariants = product.variants?.filter((v) => v.is_active) ?? [];
+  if (activeVariants.length === 0) return false;
+  const hasMultipleSizes = activeVariants.length > 1 && activeVariants.some((v) => v.size_name);
+  const hasMultiplePresentations = activeVariants.some(
+    (v) => parsePackagingOptions(v.packaging).length > 1
+  );
+  return hasMultipleSizes || hasMultiplePresentations;
+}
+
 interface Props {
   product: Product;
   showAddToCart?: boolean;
@@ -7,8 +23,9 @@ interface Props {
 
 export default function ProductCard({ product, showAddToCart = true }: Props) {
   const brandName = product.brand?.name;
-  const firstVariant = product.variants?.[0];
-  const displayUnit = firstVariant?.packaging ?? firstVariant?.size_name;
+  const goToProductToSelect = showAddToCart && needsVariantSelection(product);
+  const addButtonClass =
+    'flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700';
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-lg">
@@ -34,12 +51,6 @@ export default function ProductCard({ product, showAddToCart = true }: Props) {
       </a>
 
       <div className="flex flex-1 flex-col p-4">
-        {product.category && (
-          <span className="mb-1 text-xs font-bold uppercase tracking-wider text-red-600">
-            {product.category.name}
-          </span>
-        )}
-
         {brandName && (
           <span className="mb-1 text-xs font-medium text-gray-500">{brandName}</span>
         )}
@@ -50,30 +61,44 @@ export default function ProductCard({ product, showAddToCart = true }: Props) {
           </a>
         </h3>
 
-        {(brandName || displayUnit) && (
-          <p className="mb-3 text-xs text-gray-400">
-            {[brandName && `Marca: ${brandName}`, displayUnit].filter(Boolean).join(' | ')}
-          </p>
+        {product.description && (
+          <p className="mb-3 line-clamp-2 text-xs text-gray-500">{product.description}</p>
         )}
 
         {showAddToCart && (
           <div className="mt-auto">
-            <button
-              type="button"
-              className="add-to-cart flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700"
-              data-product-id={product.id}
-              data-product-slug={product.slug}
-              data-product-name={product.name}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-              Añadir al carrito
-            </button>
+            {goToProductToSelect ? (
+              <a
+                href={`/producto/${product.slug}?elegir=1`}
+                className={addButtonClass}
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                Añadir al carrito
+              </a>
+            ) : (
+              <button
+                type="button"
+                className={`add-to-cart ${addButtonClass}`}
+                data-product-id={product.id}
+                data-product-slug={product.slug}
+                data-product-name={product.name}
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                Añadir al carrito
+              </button>
+            )}
           </div>
         )}
       </div>

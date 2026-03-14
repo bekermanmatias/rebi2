@@ -26,7 +26,7 @@ export default function CartDrawer() {
   return (
     <>
       <div
-        className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-sm"
+        className="fixed inset-0 z-50 cursor-pointer bg-gray-900/50 backdrop-blur-sm"
         onClick={closeCart}
         aria-hidden="true"
       />

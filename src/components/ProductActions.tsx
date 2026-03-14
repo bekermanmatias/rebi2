@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useCartStore } from '../lib/cartStore';
 import type { Product, ProductVariant } from '../types';
 
@@ -16,6 +16,9 @@ export default function ProductActions({ product }: Props) {
   const activeVariants = product.variants?.filter((v) => v.is_active) ?? [];
   const hasVariants = activeVariants.length > 0;
   const hasSizes = activeVariants.some((v) => v.size_name);
+  const hasMultiplePresentations = activeVariants.some(
+    (v) => parsePackagingOptions(v.packaging).length > 1
+  );
 
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     activeVariants.length === 1 ? activeVariants[0].id : null
@@ -23,6 +26,15 @@ export default function ProductActions({ product }: Props) {
   const [selectedPackaging, setSelectedPackaging] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState('');
+  const [showElegirMessage, setShowElegirMessage] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('elegir') === '1' && hasVariants && ((hasSizes && activeVariants.length > 1) || hasMultiplePresentations)) {
+      setShowElegirMessage(true);
+    }
+  }, [hasVariants, hasSizes, hasMultiplePresentations, activeVariants.length]);
 
   const selectedVariant = activeVariants.find((v) => v.id === selectedVariantId);
 
@@ -86,8 +98,28 @@ export default function ProductActions({ product }: Props) {
     );
   }
 
+  const hasMultipleSizes = hasSizes && activeVariants.length > 1;
+  const elegirMessage =
+    hasMultipleSizes && hasMultiplePresentations
+      ? 'Seleccioná un tamaño y una presentación para añadir al carrito.'
+      : hasMultipleSizes
+        ? 'Seleccioná un tamaño para añadir al carrito.'
+        : hasMultiplePresentations
+          ? 'Seleccioná una presentación para añadir al carrito.'
+          : null;
+
   return (
     <div className="space-y-6">
+      {/* Mensaje al entrar desde la card (elegir opciones) */}
+      {showElegirMessage && elegirMessage && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <svg className="h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-sm font-medium text-amber-800">{elegirMessage}</p>
+        </div>
+      )}
+
       {/* Size + Packaging stacked */}
       <div className="flex flex-col gap-4">
         {/* Size selector */}
