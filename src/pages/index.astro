@@ -7,7 +7,8 @@ import { getCategories, getProducts, getBanners, getPromoCards, getBrands } from
 
 const categories = await getCategories();
 const featuredProducts = await getProducts({ featured: true, limit: 4 });
-const products = featuredProducts.length > 0 ? featuredProducts : await getProducts({ limit: 4 });
+const productsRaw = featuredProducts.length > 0 ? featuredProducts : await getProducts({ limit: 4 });
+const products = productsRaw.slice(0, 4);
 const banners = await getBanners();
 const promoCards = await getPromoCards();
 const brands = await getBrands();

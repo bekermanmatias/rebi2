@@ -31,6 +31,7 @@ function normalizeProduct(row: Record<string, unknown>): Product {
     variants: rawVariants as Product['variants'],
     image_url: (primaryImage?.image_url as string) ?? null,
     images: sortedImages.map((img) => img.image_url as string),
+    is_featured: row.is_featured === true,
   } as Product;
 }
 
