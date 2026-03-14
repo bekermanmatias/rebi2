@@ -12,6 +12,13 @@ interface Props {
 
 type SortOption = 'relevance' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
 
+function getCategorySlugFromUrl(): string | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const cat = params.get('categoria');
+  return cat && cat.trim() ? cat.trim() : null;
+}
+
 export default function CatalogWithFilters({ products, categories, brandLogos }: Props) {
   const [search, setSearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -19,6 +26,14 @@ export default function CatalogWithFilters({ products, categories, brandLogos }:
   const [sortBy, setSortBy] = useState<SortOption>('relevance');
   const [stockOnly, setStockOnly] = useState(false);
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const cat = params.get('categoria');
+    if (cat && cat.trim()) setSelectedCategories([cat.trim()]);
+    const q = params.get('q');
+    if (q != null && q.trim()) setSearch(q.trim());
+  }, []);
 
   const brands = useMemo(() => {
     const b = new Set<string>();

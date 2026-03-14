@@ -3,7 +3,6 @@ import CartButton from './cart/CartButton';
 import { getCategories } from '../lib/data';
 
 const categories = await getCategories();
-const mainNavCategories = categories.slice(0, 4);
 ---
 
 <div id="site-header" class="sticky top-0 z-40 transition-transform duration-300">
@@ -42,9 +41,11 @@ const mainNavCategories = categories.slice(0, 4);
           </svg>
           <input
             type="search"
+            id="header-search-input"
             name="q"
             placeholder="Ej: Cemento, Hierro 8mm, Termotanque..."
             class="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+            autocomplete="off"
           />
         </div>
       </form>
@@ -95,7 +96,7 @@ const mainNavCategories = categories.slice(0, 4);
             >
               Todas las categorías
             </a>
-            {mainNavCategories.map((cat) => (
+            {categories.map((cat) => (
               <a
                 href={`/productos?categoria=${cat.slug}`}
                 class="rounded px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-gray-700 transition-colors hover:text-red-600"
@@ -134,6 +135,15 @@ const mainNavCategories = categories.slice(0, 4);
   const header = document.getElementById('site-header')!;
   let lastScroll = 0;
   const threshold = 10;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('header-search-input');
+    if (input && input instanceof HTMLInputElement) {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('q');
+      if (q) input.value = q;
+    }
+  });
 
   window.addEventListener('scroll', () => {
     const current = window.scrollY;
