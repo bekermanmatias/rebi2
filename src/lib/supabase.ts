@@ -112,7 +112,8 @@ export async function getProducts(options?: {
     return [];
   }
 
-  return (data ?? []).map((row: Record<string, unknown>) => normalizeProduct(row));
+  const products = (data ?? []).map((row: Record<string, unknown>) => normalizeProduct(row));
+  return products.filter((p) => p.image_url != null && p.image_url !== '');
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
