@@ -510,7 +510,7 @@ function VariantEditor({
                     type="text"
                     value={v.packaging ?? ''}
                     onChange={(e) => updateVariant(i, 'packaging', e.target.value)}
-                    placeholder="Ej: 50u. x caja / 1 Unidad"
+                    placeholder="Ej: 50u. x caja / Unidad"
                     className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-red-500 focus:outline-none"
                   />
                 </div>
