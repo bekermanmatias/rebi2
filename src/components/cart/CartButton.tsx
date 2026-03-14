@@ -3,7 +3,7 @@ import { useCartStore } from '../../lib/cartStore';
 import type { CartNotification } from '../../lib/cartStore';
 
 export default function CartButton() {
-  const { getTotalItems, toggleCart, notification, dismissNotification } = useCartStore();
+  const { getTotalItems, notification, dismissNotification } = useCartStore();
   const count = getTotalItems();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -18,9 +18,8 @@ export default function CartButton() {
 
   return (
     <div className="relative">
-      <button
-        type="button"
-        onClick={toggleCart}
+      <a
+        href="/carrito"
         className="relative flex items-center gap-2 text-sm text-gray-700 transition-colors hover:text-red-600"
         aria-label={`Mi Carrito: ${count} productos`}
       >
@@ -37,7 +36,7 @@ export default function CartButton() {
           </span>
         )}
         <span className="hidden lg:inline">Mi Carrito</span>
-      </button>
+      </a>
 
       {notification && (
         <CartAddedNotification data={notification} onDismiss={dismissNotification} />
@@ -93,16 +92,13 @@ function CartAddedNotification({
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => {
-          onDismiss();
-          useCartStore.getState().openCart();
-        }}
-        className="mt-3 w-full rounded-lg bg-red-600 py-2 text-center text-xs font-semibold text-white transition-colors hover:bg-red-700"
+      <a
+        href="/carrito"
+        onClick={onDismiss}
+        className="mt-3 block w-full rounded-lg bg-red-600 py-2 text-center text-xs font-semibold text-white transition-colors hover:bg-red-700"
       >
         Ver carrito
-      </button>
+      </a>
     </div>
   );
 }

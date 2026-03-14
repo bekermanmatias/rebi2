@@ -111,10 +111,9 @@ export default function OffersBanner({ banners }: Props) {
         .offers-swiper .swiper-button-next,
         .offers-swiper .swiper-button-prev {
           color: white;
-          background: rgba(0, 0, 0, 0.3);
+          background: transparent;
           width: 44px;
           height: 44px;
-          border-radius: 50%;
         }
         .offers-swiper .swiper-button-next::after,
         .offers-swiper .swiper-button-prev::after {
