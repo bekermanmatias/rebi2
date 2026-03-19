@@ -1,5 +1,6 @@
 ---
 import CartButton from './cart/CartButton';
+import AuthButton from './AuthButton';
 import { getCategories } from '../lib/data';
 
 const categories = await getCategories();
@@ -59,13 +60,10 @@ const categories = await getCategories();
           </svg>
         </a>
 
-        <!-- Mi Cuenta -->
-        <a href="#" class="hidden items-center gap-2 text-sm text-gray-700 transition-colors hover:text-red-600 sm:flex">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span class="hidden lg:inline">Mi Cuenta</span>
-        </a>
+        <!-- Mi Cuenta / Auth -->
+        <div class="hidden items-center sm:flex">
+          <AuthButton client:load />
+        </div>
 
         <!-- Mi Carrito -->
         <CartButton client:load />

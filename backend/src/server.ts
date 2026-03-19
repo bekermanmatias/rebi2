@@ -8,6 +8,10 @@ const PORT = Number(process.env.PORT || 4000);
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || process.env.PUBLIC_SUPABASE_ANON_KEY || '';
+const adminEmails = (process.env.ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
 
 const fastify = Fastify({
   logger: true,
@@ -29,6 +33,18 @@ fastify.addHook('onSend', async (request, reply, payload) => {
 const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
   : null;
+
+type AuthUser = {
+  id: string;
+  email?: string;
+};
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    user?: AuthUser;
+    userToken?: string;
+  }
+}
 
 fastify.get('/health', async () => {
   return { status: 'ok' };
@@ -59,6 +75,76 @@ function normalizeProduct(row: any) {
     images: sortedImages.map((img) => img?.image_url).filter(Boolean),
     is_featured: row?.is_featured === true,
   };
+}
+
+// ─── Auth middleware (valida JWT de Supabase) ────────────────────────
+async function authenticate(request: any, reply: any) {
+  if (!supabase) {
+    reply.code(500);
+    throw new Error('Supabase not configured');
+  }
+
+  const authHeader = request.headers['authorization'] as string | undefined;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+
+  if (!token) {
+    reply.code(401);
+    throw new Error('Missing Authorization header');
+  }
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) {
+    reply.code(401);
+    throw new Error('Invalid token');
+  }
+
+  request.userToken = token;
+  request.user = {
+    id: data.user.id,
+    email: data.user.email ?? undefined,
+  };
+}
+
+async function requireAdmin(request: any, reply: any) {
+  await authenticate(request, reply);
+  const email = request.user?.email?.toLowerCase();
+  if (!email || adminEmails.length === 0 || !adminEmails.includes(email)) {
+    reply.code(403);
+    throw new Error('Forbidden');
+  }
+}
+
+async function maybeAuthenticate(request: any) {
+  if (!supabase) return;
+  const authHeader = request.headers['authorization'] as string | undefined;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  if (!token) return;
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return;
+  request.userToken = token;
+  request.user = {
+    id: data.user.id,
+    email: data.user.email ?? undefined,
+  };
+}
+
+function buildOrderWhatsAppMessage(order: any) {
+  const lines = (order.items ?? []).map((i: any) => {
+    const variant = i.variantId ? ` (variante: ${i.variantId})` : '';
+    return `• ${i.productId}${variant} x${i.quantity}`;
+  });
+  const parts: string[] = [
+    `Hola, soy REBI. Sobre tu pedido ${order.id}:`,
+    '',
+    'Items:',
+    lines.join('\n'),
+  ];
+  parts.push('', `Entrega: ${order.delivery_type}`);
+  if (order.delivery_address) parts.push(`Dirección: ${order.delivery_address}`);
+  if (order.branch_id) parts.push(`Sucursal: ${order.branch_id}`);
+  if (order.vendedor_code) parts.push(`Código vendedor: ${order.vendedor_code}`);
+  if (order.customer_email) parts.push(`Email: ${order.customer_email}`);
+  return encodeURIComponent(parts.join('\n'));
 }
 
 fastify.get('/categories', async (request, reply) => {
@@ -211,6 +297,131 @@ fastify.get('/products/:slug', async (request, reply) => {
     return { error: 'Not found' };
   }
   return normalizeProduct(data);
+});
+
+// Crear orden (checkout) - permite guest (sin auth) pero si hay JWT lo asocia al usuario
+fastify.post('/orders', async (request, reply) => {
+  if (!supabase) {
+    reply.code(500);
+    return { error: 'Supabase not configured' };
+  }
+  await maybeAuthenticate(request);
+
+  const bodySchema = z.object({
+    items: z.array(z.object({
+      productId: z.string().uuid(),
+      variantId: z.string().uuid().optional(),
+      quantity: z.number().int().min(1),
+    })).min(1),
+    delivery: z.object({
+      type: z.enum(['envio', 'retiro_uchuraccay', 'retiro_hoyos_rubio']),
+      address: z.string().optional(),
+      branchId: z.string().optional(),
+    }),
+    vendedorCode: z.string().optional(),
+    whatsappNumber: z.string().optional(),
+  });
+
+  const parsed = bodySchema.safeParse(request.body);
+  if (!parsed.success) {
+    reply.code(400);
+    return { error: 'Invalid payload' };
+  }
+
+  const { items, delivery, vendedorCode, whatsappNumber } = parsed.data;
+
+  // TODO: validar stock real cuando tengamos inventario
+
+  const { data, error } = await supabase
+    .from('orders')
+    .insert({
+      user_id: request.user?.id ?? null,
+      customer_email: request.user?.email ?? null,
+      status: 'pending',
+      delivery_type: delivery.type,
+      delivery_address: delivery.address ?? null,
+      branch_id: delivery.branchId ?? null,
+      vendedor_code: vendedorCode ?? null,
+      whatsapp_number: whatsappNumber ?? null,
+      items,
+    })
+    .select('id, status, created_at')
+    .single();
+
+  if (error || !data) {
+    request.log.error({ error }, 'Error creating order');
+    reply.code(500);
+    return { error: 'Error creating order' };
+  }
+
+  return {
+    id: data.id,
+    status: data.status,
+    created_at: data.created_at,
+  };
+});
+
+// Admin: listar órdenes
+fastify.get('/admin/orders', { preHandler: requireAdmin }, async (request, reply) => {
+  if (!supabase) {
+    reply.code(500);
+    return { error: 'Supabase not configured' };
+  }
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) {
+    request.log.error({ error }, 'Error fetching orders');
+    reply.code(500);
+    return { error: 'Error fetching orders' };
+  }
+  return data ?? [];
+});
+
+// Admin: aceptar orden + devolver link de WhatsApp listo
+fastify.post('/admin/orders/:id/accept', { preHandler: requireAdmin }, async (request, reply) => {
+  if (!supabase) {
+    reply.code(500);
+    return { error: 'Supabase not configured' };
+  }
+  const paramsSchema = z.object({ id: z.string().uuid() });
+  const parsed = paramsSchema.safeParse(request.params);
+  if (!parsed.success) {
+    reply.code(400);
+    return { error: 'Invalid order id' };
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status: 'accepted' })
+    .eq('id', parsed.data.id)
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    request.log.error({ error }, 'Error accepting order');
+    reply.code(500);
+    return { error: 'Error accepting order' };
+  }
+
+  const message = buildOrderWhatsAppMessage(data);
+  const phone = (data.whatsapp_number as string) || '';
+  const whatsappUrl = phone ? `https://wa.me/${phone}?text=${message}` : null;
+  return { order: data, whatsappUrl };
+});
+
+// Ejemplo de endpoint protegido: devuelve el perfil básico del usuario autenticado.
+fastify.get('/me', { preHandler: authenticate }, async (request, reply) => {
+  if (!request.user) {
+    reply.code(401);
+    return { error: 'Unauthorized' };
+  }
+  return {
+    id: request.user.id,
+    email: request.user.email ?? null,
+  };
 });
 
 async function start() {

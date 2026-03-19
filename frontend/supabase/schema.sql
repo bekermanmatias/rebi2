@@ -71,6 +71,23 @@ CREATE TABLE IF NOT EXISTS home_banners (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Tabla de órdenes
+CREATE TABLE IF NOT EXISTS orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID,
+  customer_email TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  delivery_type TEXT NOT NULL,
+  delivery_address TEXT,
+  branch_id TEXT,
+  vendedor_code TEXT,
+  whatsapp_number TEXT,
+  items JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id);

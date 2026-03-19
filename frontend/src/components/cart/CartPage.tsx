@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { useCartStore, itemKey } from '../../lib/cartStore';
+import { supabaseAuthClient } from '../../lib/authClient';
+
+const API_BASE_URL = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
 const WHATSAPP_NUMBER = import.meta.env.PUBLIC_WHATSAPP_NUMBER ?? '5491112345678';
 
@@ -63,6 +66,52 @@ export default function CartPage() {
   const [direccionEnvio, setDireccionEnvio] = useState('');
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${buildWhatsAppMessage(codigoVendedor, tipoEntrega, direccionEnvio)}`;
+
+  async function handleFinalize() {
+    // Siempre abrimos WhatsApp, pero si el usuario está logueado, registramos la orden en backend antes.
+    try {
+      if (items.length > 0) {
+        const payload = {
+          items: items.map((i) => ({
+            productId: i.product.id,
+            variantId: i.variantId,
+            quantity: i.quantity,
+          })),
+          delivery: {
+            type: tipoEntrega,
+            address: tipoEntrega === 'envio' ? direccionEnvio || undefined : undefined,
+            branchId:
+              tipoEntrega === 'retiro_uchuraccay'
+                ? 'uchuraccay'
+                : tipoEntrega === 'retiro_hoyos_rubio'
+                  ? 'hoyos_rubio'
+                  : undefined,
+          },
+          vendedorCode: codigoVendedor || undefined,
+          whatsappNumber: WHATSAPP_NUMBER,
+        };
+
+        let token: string | undefined;
+        if (supabaseAuthClient) {
+          const { data } = await supabaseAuthClient.auth.getSession();
+          token = data.session?.access_token;
+        }
+
+        await fetch(`${API_BASE_URL}/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        }).catch(() => {
+          // Silencioso: si falla el registro de orden, igual dejamos que el usuario siga por WhatsApp
+        });
+      }
+    } finally {
+      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    }
+  }
 
   return (
     <div className="w-full">
@@ -262,14 +311,13 @@ export default function CartPage() {
                 className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
               />
             </aside>
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={handleFinalize}
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700"
             >
               Finalizar compra
-            </a>
+            </button>
             <p className="text-xs text-gray-500">
               Se abrirá WhatsApp con tu lista, opción de entrega y código de vendedor (si lo ingresaste).
             </p>
