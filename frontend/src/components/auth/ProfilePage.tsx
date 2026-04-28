@@ -247,12 +247,6 @@ export default function ProfilePage() {
     window.location.href = '/';
   }
 
-  function openAuth() {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('auth:open'));
-    }
-  }
-
   if (state.status === 'loading') {
     return (
       <div className="mx-auto max-w-2xl rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
@@ -266,12 +260,12 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
         <h1 className="text-xl font-bold text-gray-900">Mi Cuenta</h1>
         <p className="mt-2 text-sm text-gray-500">Iniciá sesión para ver tu perfil y tus pedidos.</p>
-        <button
-          onClick={openAuth}
+        <a
+          href="/login?redirect=%2Fmi-cuenta"
           className="mt-5 inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
         >
           Ingresar
-        </button>
+        </a>
       </div>
     );
   }
@@ -279,7 +273,7 @@ export default function ProfilePage() {
   const current = SECTIONS.find((s) => s.id === section)!;
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 md:grid-cols-[260px_1fr]">
+    <div className="mx-auto grid w-full max-w-[1320px] gap-6 md:grid-cols-[300px_minmax(0,1fr)]">
       <aside className="md:sticky md:top-24 md:self-start">
         <div className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">

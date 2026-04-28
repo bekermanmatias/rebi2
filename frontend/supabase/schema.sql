@@ -88,6 +88,24 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 
+-- Carrito persistente por usuario
+CREATE TABLE IF NOT EXISTS user_carts (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE user_carts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users read own cart" ON user_carts
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users insert own cart" ON user_carts
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users update own cart" ON user_carts
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users delete own cart" ON user_carts
+  FOR DELETE USING (auth.uid() = user_id);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id);

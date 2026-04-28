@@ -199,9 +199,20 @@ export default function CartPage() {
                         >
                           −
                         </button>
-                        <span className="min-w-8 text-center text-base font-semibold">
-                          {item.quantity}
-                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          value={item.quantity}
+                          onChange={(e) => {
+                            if (e.target.value.trim() === '') return;
+                            const next = Number(e.target.value);
+                            if (Number.isNaN(next)) return;
+                            updateQuantity(key, next);
+                          }}
+                          className="no-number-spinner h-9 w-16 border-x border-gray-200 bg-white px-1 text-center text-base font-semibold tabular-nums text-gray-900 focus:outline-none"
+                          aria-label={`Cantidad de ${item.product.name}`}
+                        />
                         <button
                           type="button"
                           onClick={() => updateQuantity(key, item.quantity + 1)}

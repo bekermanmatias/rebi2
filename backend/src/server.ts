@@ -39,8 +39,13 @@ app.use(express.json({ limit: '1mb' }));
 
 app.use((req, res, next) => {
   if (req.method === 'GET') {
-    const maxAge = req.path.startsWith('/products/') ? 300 : 60;
-    res.setHeader('Cache-Control', `public, max-age=${maxAge}, s-maxage=${maxAge}`);
+    const isPrivate = req.path.startsWith('/me') || req.path.startsWith('/admin');
+    if (isPrivate) {
+      res.setHeader('Cache-Control', 'private, no-store');
+    } else {
+      const maxAge = req.path.startsWith('/products/') ? 300 : 60;
+      res.setHeader('Cache-Control', `public, max-age=${maxAge}, s-maxage=${maxAge}`);
+    }
   }
   next();
 });
@@ -128,6 +133,16 @@ const requireAdmin = asyncHandler(async (req, res, next) => {
   }
   next();
 });
+
+function userSupabase(req: Request) {
+  if (!supabaseUrl || !supabaseKey || !req.userToken) return null;
+  return createClient(supabaseUrl, supabaseKey, {
+    global: {
+      headers: { Authorization: `Bearer ${req.userToken}` },
+    },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
 
 async function maybeAuthenticate(req: Request) {
   if (!supabase) return;
@@ -439,6 +454,68 @@ app.get('/me', authenticate, (req, res) => {
     email: req.user.email ?? null,
   });
 });
+
+// Carrito persistente del usuario autenticado
+app.get('/me/cart', authenticate, asyncHandler(async (req, res) => {
+  const sb = userSupabase(req);
+  if (!sb || !req.user) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+
+  const { data, error } = await sb
+    .from('user_carts')
+    .select('items, updated_at')
+    .eq('user_id', req.user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching user cart', error);
+    res.status(500).json({ error: 'Error fetching cart' });
+    return;
+  }
+
+  res.json({
+    items: Array.isArray(data?.items) ? data?.items : [],
+    updated_at: data?.updated_at ?? null,
+  });
+}));
+
+app.put('/me/cart', authenticate, asyncHandler(async (req, res) => {
+  const sb = userSupabase(req);
+  if (!sb || !req.user) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+
+  const bodySchema = z.object({
+    items: z.array(z.unknown()).max(200),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+
+  const { error } = await sb
+    .from('user_carts')
+    .upsert(
+      {
+        user_id: req.user.id,
+        items: parsed.data.items,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
+
+  if (error) {
+    console.error('Error saving user cart', error);
+    res.status(500).json({ error: 'Error saving cart' });
+    return;
+  }
+
+  res.json({ ok: true });
+}));
 
 // Pedidos del usuario autenticado
 app.get('/me/orders', authenticate, asyncHandler(async (req, res) => {
