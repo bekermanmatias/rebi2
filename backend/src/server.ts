@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -13,23 +13,6 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? '')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
-const fastify = Fastify({
-  logger: true,
-});
-
-fastify.register(cors, {
-  origin: '*',
-});
-
-// Cache simple para GET públicos (mejora TTFB y reduce carga a Supabase)
-fastify.addHook('onSend', async (request, reply, payload) => {
-  if (request.method !== 'GET') return payload;
-  // 60s para listados, 300s para detalle
-  const maxAge = request.url.startsWith('/products/') ? 300 : 60;
-  reply.header('Cache-Control', `public, max-age=${maxAge}, s-maxage=${maxAge}`);
-  return payload;
-});
-
 const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
   : null;
@@ -39,15 +22,39 @@ type AuthUser = {
   email?: string;
 };
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: AuthUser;
-    userToken?: string;
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      user?: AuthUser;
+      userToken?: string;
+    }
   }
 }
 
-fastify.get('/health', async () => {
-  return { status: 'ok' };
+const app = express();
+
+app.use(cors({ origin: '*' }));
+app.use(express.json({ limit: '1mb' }));
+
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    const maxAge = req.path.startsWith('/products/') ? 300 : 60;
+    res.setHeader('Cache-Control', `public, max-age=${maxAge}, s-maxage=${maxAge}`);
+  }
+  next();
+});
+
+function asyncHandler(
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>,
+) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    fn(req, res, next).catch(next);
+  };
+}
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
 const PRODUCT_SELECT = `
@@ -72,57 +79,67 @@ function normalizeProduct(row: any) {
     product_images: sortedImages,
     variants: rawVariants,
     image_url: primaryImage?.image_url ?? null,
-    images: sortedImages.map((img) => img?.image_url).filter(Boolean),
+    images: sortedImages.map((img: any) => img?.image_url).filter(Boolean),
     is_featured: row?.is_featured === true,
   };
 }
 
-// ─── Auth middleware (valida JWT de Supabase) ────────────────────────
-async function authenticate(request: any, reply: any) {
+// ─── Auth middlewares (valida JWT de Supabase) ────────────────────────
+const authenticate = asyncHandler(async (req, res, next) => {
   if (!supabase) {
-    reply.code(500);
-    throw new Error('Supabase not configured');
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
 
-  const authHeader = request.headers['authorization'] as string | undefined;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const authHeader = req.headers['authorization'];
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : undefined;
 
   if (!token) {
-    reply.code(401);
-    throw new Error('Missing Authorization header');
+    res.status(401).json({ error: 'Missing Authorization header' });
+    return;
   }
 
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
-    reply.code(401);
-    throw new Error('Invalid token');
+    res.status(401).json({ error: 'Invalid token' });
+    return;
   }
 
-  request.userToken = token;
-  request.user = {
+  req.userToken = token;
+  req.user = {
     id: data.user.id,
     email: data.user.email ?? undefined,
   };
-}
+  next();
+});
 
-async function requireAdmin(request: any, reply: any) {
-  await authenticate(request, reply);
-  const email = request.user?.email?.toLowerCase();
+const requireAdmin = asyncHandler(async (req, res, next) => {
+  await new Promise<void>((resolve, reject) => {
+    authenticate(req, res, (err?: unknown) => (err ? reject(err) : resolve()));
+  });
+  if (res.headersSent) return;
+
+  const email = req.user?.email?.toLowerCase();
   if (!email || adminEmails.length === 0 || !adminEmails.includes(email)) {
-    reply.code(403);
-    throw new Error('Forbidden');
+    res.status(403).json({ error: 'Forbidden' });
+    return;
   }
-}
+  next();
+});
 
-async function maybeAuthenticate(request: any) {
+async function maybeAuthenticate(req: Request) {
   if (!supabase) return;
-  const authHeader = request.headers['authorization'] as string | undefined;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const authHeader = req.headers['authorization'];
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : undefined;
   if (!token) return;
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) return;
-  request.userToken = token;
-  request.user = {
+  req.userToken = token;
+  req.user = {
     id: data.user.id,
     email: data.user.email ?? undefined,
   };
@@ -147,38 +164,38 @@ function buildOrderWhatsAppMessage(order: any) {
   return encodeURIComponent(parts.join('\n'));
 }
 
-fastify.get('/categories', async (request, reply) => {
+app.get('/categories', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase.from('categories').select('*').order('name');
   if (error) {
-    request.log.error({ error }, 'Error fetching categories');
-    reply.code(500);
-    return { error: 'Error fetching categories' };
+    console.error('Error fetching categories', error);
+    res.status(500).json({ error: 'Error fetching categories' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/brands', async (request, reply) => {
+app.get('/brands', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase.from('brands').select('*').order('name');
   if (error) {
-    request.log.error({ error }, 'Error fetching brands');
-    reply.code(500);
-    return { error: 'Error fetching brands' };
+    console.error('Error fetching brands', error);
+    res.status(500).json({ error: 'Error fetching brands' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/banners', async (request, reply) => {
+app.get('/banners', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase
     .from('home_banners')
@@ -186,17 +203,17 @@ fastify.get('/banners', async (request, reply) => {
     .eq('is_active', true)
     .order('display_order');
   if (error) {
-    request.log.error({ error }, 'Error fetching banners');
-    reply.code(500);
-    return { error: 'Error fetching banners' };
+    console.error('Error fetching banners', error);
+    res.status(500).json({ error: 'Error fetching banners' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/promo-cards', async (request, reply) => {
+app.get('/promo-cards', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase
     .from('promo_cards')
@@ -204,17 +221,17 @@ fastify.get('/promo-cards', async (request, reply) => {
     .eq('is_active', true)
     .order('display_order');
   if (error) {
-    request.log.error({ error }, 'Error fetching promo cards');
-    reply.code(500);
-    return { error: 'Error fetching promo cards' };
+    console.error('Error fetching promo cards', error);
+    res.status(500).json({ error: 'Error fetching promo cards' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/products', async (request, reply) => {
+app.get('/products', asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
 
   const querySchema = z.object({
@@ -224,10 +241,10 @@ fastify.get('/products', async (request, reply) => {
     brand: z.string().optional(),
     search: z.string().optional(),
   });
-  const parsed = querySchema.safeParse(request.query);
+  const parsed = querySchema.safeParse(req.query);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid query params' };
+    res.status(400).json({ error: 'Invalid query params' });
+    return;
   }
   const q = parsed.data;
 
@@ -249,7 +266,6 @@ fastify.get('/products', async (request, reply) => {
     sbQuery = sbQuery.or(`name.ilike.%${s}%,description.ilike.%${s}%`);
   }
 
-  // Note: para category/brand por slug, resolvemos id (2 queries máximo).
   if (q.category) {
     const { data: cat } = await supabase.from('categories').select('id').eq('slug', q.category).single();
     if (cat?.id) sbQuery = sbQuery.eq('category_id', cat.id);
@@ -263,27 +279,27 @@ fastify.get('/products', async (request, reply) => {
 
   const { data, error } = await sbQuery;
   if (error) {
-    request.log.error({ error }, 'Error fetching products');
-    reply.code(500);
-    return { error: 'Error fetching products' };
+    console.error('Error fetching products', error);
+    res.status(500).json({ error: 'Error fetching products' });
+    return;
   }
 
   const products = (data ?? [])
     .map((p: any) => normalizeProduct(p))
     .filter((p: any) => p?.image_url);
-  return products;
-});
+  res.json(products);
+}));
 
-fastify.get('/products/:slug', async (request, reply) => {
+app.get('/products/:slug', asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const paramsSchema = z.object({ slug: z.string().min(1) });
-  const parsed = paramsSchema.safeParse(request.params);
+  const parsed = paramsSchema.safeParse(req.params);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid slug' };
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
   }
 
   const { data, error } = await supabase
@@ -293,19 +309,19 @@ fastify.get('/products/:slug', async (request, reply) => {
     .single();
 
   if (error || !data) {
-    reply.code(404);
-    return { error: 'Not found' };
+    res.status(404).json({ error: 'Not found' });
+    return;
   }
-  return normalizeProduct(data);
-});
+  res.json(normalizeProduct(data));
+}));
 
 // Crear orden (checkout) - permite guest (sin auth) pero si hay JWT lo asocia al usuario
-fastify.post('/orders', async (request, reply) => {
+app.post('/orders', asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
-  await maybeAuthenticate(request);
+  await maybeAuthenticate(req);
 
   const bodySchema = z.object({
     items: z.array(z.object({
@@ -322,10 +338,10 @@ fastify.post('/orders', async (request, reply) => {
     whatsappNumber: z.string().optional(),
   });
 
-  const parsed = bodySchema.safeParse(request.body);
+  const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid payload' };
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
   }
 
   const { items, delivery, vendedorCode, whatsappNumber } = parsed.data;
@@ -335,8 +351,8 @@ fastify.post('/orders', async (request, reply) => {
   const { data, error } = await supabase
     .from('orders')
     .insert({
-      user_id: request.user?.id ?? null,
-      customer_email: request.user?.email ?? null,
+      user_id: req.user?.id ?? null,
+      customer_email: req.user?.email ?? null,
       status: 'pending',
       delivery_type: delivery.type,
       delivery_address: delivery.address ?? null,
@@ -349,23 +365,23 @@ fastify.post('/orders', async (request, reply) => {
     .single();
 
   if (error || !data) {
-    request.log.error({ error }, 'Error creating order');
-    reply.code(500);
-    return { error: 'Error creating order' };
+    console.error('Error creating order', error);
+    res.status(500).json({ error: 'Error creating order' });
+    return;
   }
 
-  return {
+  res.json({
     id: data.id,
     status: data.status,
     created_at: data.created_at,
-  };
-});
+  });
+}));
 
 // Admin: listar órdenes
-fastify.get('/admin/orders', { preHandler: requireAdmin }, async (request, reply) => {
+app.get('/admin/orders', requireAdmin, asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase
     .from('orders')
@@ -373,24 +389,24 @@ fastify.get('/admin/orders', { preHandler: requireAdmin }, async (request, reply
     .order('created_at', { ascending: false })
     .limit(200);
   if (error) {
-    request.log.error({ error }, 'Error fetching orders');
-    reply.code(500);
-    return { error: 'Error fetching orders' };
+    console.error('Error fetching orders', error);
+    res.status(500).json({ error: 'Error fetching orders' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
 // Admin: aceptar orden + devolver link de WhatsApp listo
-fastify.post('/admin/orders/:id/accept', { preHandler: requireAdmin }, async (request, reply) => {
+app.post('/admin/orders/:id/accept', requireAdmin, asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const paramsSchema = z.object({ id: z.string().uuid() });
-  const parsed = paramsSchema.safeParse(request.params);
+  const parsed = paramsSchema.safeParse(req.params);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid order id' };
+    res.status(400).json({ error: 'Invalid order id' });
+    return;
   }
 
   const { data, error } = await supabase
@@ -401,38 +417,35 @@ fastify.post('/admin/orders/:id/accept', { preHandler: requireAdmin }, async (re
     .single();
 
   if (error || !data) {
-    request.log.error({ error }, 'Error accepting order');
-    reply.code(500);
-    return { error: 'Error accepting order' };
+    console.error('Error accepting order', error);
+    res.status(500).json({ error: 'Error accepting order' });
+    return;
   }
 
   const message = buildOrderWhatsAppMessage(data);
   const phone = (data.whatsapp_number as string) || '';
   const whatsappUrl = phone ? `https://wa.me/${phone}?text=${message}` : null;
-  return { order: data, whatsappUrl };
-});
+  res.json({ order: data, whatsappUrl });
+}));
 
 // Ejemplo de endpoint protegido: devuelve el perfil básico del usuario autenticado.
-fastify.get('/me', { preHandler: authenticate }, async (request, reply) => {
-  if (!request.user) {
-    reply.code(401);
-    return { error: 'Unauthorized' };
+app.get('/me', authenticate, (req, res) => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
-  return {
-    id: request.user.id,
-    email: request.user.email ?? null,
-  };
+  res.json({
+    id: req.user.id,
+    email: req.user.email ?? null,
+  });
 });
 
-async function start() {
-  try {
-    await fastify.listen({ port: PORT, host: '0.0.0.0' });
-    fastify.log.info(`Backend listening on http://localhost:${PORT}`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-}
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Unhandled error', err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Internal server error' });
+});
 
-start();
-
+app.listen(PORT, '0.0.0.0', () => {
+  console.info(`Backend listening on http://localhost:${PORT}`);
+});
