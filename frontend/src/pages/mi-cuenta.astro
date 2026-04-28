@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ProfilePage from '../components/auth/ProfilePage';
+---
+
+<Layout title="Mi Cuenta | Rebi" description="Gestioná tu perfil y sesión en Rebi.">
+  <section class="mx-auto max-w-[1400px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+    <ProfilePage client:load />
+  </section>
+</Layout>
