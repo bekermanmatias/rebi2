@@ -440,6 +440,33 @@ app.get('/me', authenticate, (req, res) => {
   });
 });
 
+// Pedidos del usuario autenticado
+app.get('/me/orders', authenticate, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, status, delivery_type, delivery_address, branch_id, vendedor_code, items, created_at')
+    .eq('user_id', req.user.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error('Error fetching user orders', error);
+    res.status(500).json({ error: 'Error fetching orders' });
+    return;
+  }
+
+  res.json(data ?? []);
+}));
+
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Unhandled error', err);
   if (res.headersSent) return;
