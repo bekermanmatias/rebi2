@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { sendInvitationEmail, isEmailConfigured } from './email.js';
 
 const PORT = Number(process.env.PORT || 4000);
 
@@ -15,12 +16,18 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? '')
   .split(',')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
+const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:4321').replace(/\/$/, '');
 
 const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 const supabaseStorage = supabaseUrl && (supabaseServiceRoleKey || supabaseKey)
   ? createClient(supabaseUrl, supabaseServiceRoleKey || supabaseKey)
+  : null;
+const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
   : null;
 
 type AuthUser = {
@@ -214,6 +221,13 @@ function buildOrderWhatsAppMessage(order: any) {
   if (order.vendedor_code) parts.push(`Código vendedor: ${order.vendedor_code}`);
   if (order.customer_email) parts.push(`Email: ${order.customer_email}`);
   return encodeURIComponent(parts.join('\n'));
+}
+
+function isMissingOrdersTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { code?: unknown }).code;
+  const message = (error as { message?: unknown }).message;
+  return code === 'PGRST205' && typeof message === 'string' && message.includes("table 'public.orders'");
 }
 
 function storagePathFromPublicUrl(url: string): string | null {
@@ -879,12 +893,136 @@ app.get('/me/orders', authenticate, asyncHandler(async (req, res) => {
     .limit(50);
 
   if (error) {
+    if (isMissingOrdersTableError(error)) {
+      // Si la migración de orders todavía no se aplicó, evitamos romper la cuenta del usuario.
+      res.json([]);
+      return;
+    }
     console.error('Error fetching user orders', error);
     res.status(500).json({ error: 'Error fetching orders' });
     return;
   }
 
   res.json(data ?? []);
+}));
+
+// ─── Registro por email + envío de correo formal ───────────────────────
+async function findUserByEmail(email: string) {
+  if (!supabaseAdmin) return null;
+  const target = email.trim().toLowerCase();
+  const perPage = 200;
+
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.error('Error listing users for email lookup', error);
+      return null;
+    }
+    const users = data?.users ?? [];
+    const match = users.find((u) => (u.email ?? '').toLowerCase() === target);
+    if (match) return match;
+    if (users.length < perPage) break;
+  }
+  return null;
+}
+
+app.post('/auth/register/start', asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Supabase admin no está configurado (falta SUPABASE_SERVICE_ROLE_KEY)' });
+    return;
+  }
+
+  const bodySchema = z.object({
+    email: z.string().email().max(254),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Email inválido' });
+    return;
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    const hasPassword = Boolean(
+      (existing as unknown as { encrypted_password?: string }).encrypted_password
+    );
+    const confirmed = Boolean(existing.email_confirmed_at) && hasPassword;
+    if (confirmed) {
+      res.status(409).json({
+        error: 'Ya existe una cuenta con ese correo. Iniciá sesión o restablecé tu contraseña.',
+        code: 'user_exists',
+      });
+      return;
+    }
+  }
+
+  const redirectTo = `${frontendUrl}/registro/completar`;
+  const linkType = existing ? 'magiclink' : 'invite';
+
+  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    type: linkType as 'invite',
+    email,
+    options: { redirectTo },
+  });
+
+  if (linkError || !linkData) {
+    console.error('Error generating registration link', linkError);
+    res.status(500).json({ error: 'No se pudo generar el enlace de registro' });
+    return;
+  }
+
+  const actionLink = (linkData.properties as { action_link?: string } | null)?.action_link;
+  if (!actionLink) {
+    res.status(500).json({ error: 'Respuesta de Supabase sin enlace de acción' });
+    return;
+  }
+
+  try {
+    await sendInvitationEmail({ to: email, actionLink });
+  } catch (err) {
+    console.error('Error sending invitation email', err);
+    const rawMessage = err instanceof Error ? err.message : '';
+    const smtpResponse = typeof (err as { response?: unknown })?.response === 'string'
+      ? (err as { response: string }).response
+      : '';
+    const errorText = `${rawMessage} ${smtpResponse}`.toLowerCase();
+
+    if (errorText.includes('domain is not verified')) {
+      res.status(503).json({
+        error: 'El proveedor de correo requiere verificar el dominio remitente. Verificá el dominio en Resend y reintentá.',
+        code: 'email_domain_not_verified',
+      });
+      return;
+    }
+
+    if (errorText.includes('only send testing emails to your own email address')) {
+      res.status(503).json({
+        error: 'Tu SMTP está en modo testing y solo permite enviar al correo propietario. Verificá un dominio en Resend para enviar a terceros.',
+        code: 'email_testing_mode',
+      });
+      return;
+    }
+
+    if (errorText.includes('bad sender address syntax') || errorText.includes('mail from')) {
+      res.status(503).json({
+        error: 'El remitente SMTP_FROM tiene un formato inválido. Usá por ejemplo: Rebi Construcciones <onboarding@resend.dev>.',
+        code: 'email_invalid_sender',
+      });
+      return;
+    }
+
+    res.status(500).json({ error: 'No se pudo enviar el correo de activación. Intentá nuevamente en unos minutos.' });
+    return;
+  }
+
+  res.json({
+    ok: true,
+    emailDelivered: isEmailConfigured(),
+    message: isEmailConfigured()
+      ? 'Te enviamos un correo con un enlace para activar tu cuenta.'
+      : 'SMTP no configurado: revisá los logs del backend para obtener el enlace de activación.',
+  });
 }));
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

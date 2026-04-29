@@ -5,7 +5,22 @@ type AuthState = {
   loading: boolean;
   email?: string | null;
   displayName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
 };
+
+function splitName(fullName?: string | null, firstName?: string | null, lastName?: string | null) {
+  const first = (firstName || '').trim();
+  const last = (lastName || '').trim();
+  if (first && last) return { first, last };
+
+  const full = (fullName || '').trim();
+  if (!full) return { first: '', last: '' };
+
+  const parts = full.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { first: full, last: '' };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
 
 function buildLoginHref() {
   if (typeof window === 'undefined') return '/login';
@@ -36,7 +51,7 @@ export default function AuthButton() {
         const firstName = typeof user?.user_metadata?.first_name === 'string' ? user.user_metadata.first_name.trim() : '';
         const lastName = typeof user?.user_metadata?.last_name === 'string' ? user.user_metadata.last_name.trim() : '';
         const displayName = fullName || [firstName, lastName].filter(Boolean).join(' ') || (user?.email ?? null);
-        setState({ loading: false, email: user?.email ?? null, displayName });
+        setState({ loading: false, email: user?.email ?? null, displayName, firstName, lastName });
       })
       .catch(() => {
         if (!mounted) return;
@@ -50,7 +65,7 @@ export default function AuthButton() {
       const firstName = typeof user?.user_metadata?.first_name === 'string' ? user.user_metadata.first_name.trim() : '';
       const lastName = typeof user?.user_metadata?.last_name === 'string' ? user.user_metadata.last_name.trim() : '';
       const displayName = fullName || [firstName, lastName].filter(Boolean).join(' ') || (user?.email ?? null);
-      setState({ loading: false, email: user?.email ?? null, displayName });
+      setState({ loading: false, email: user?.email ?? null, displayName, firstName, lastName });
     });
 
     return () => {
@@ -64,6 +79,7 @@ export default function AuthButton() {
   }
 
   if (state.email) {
+    const split = splitName(state.displayName, state.firstName, state.lastName);
     return (
       <a
         href="/mi-cuenta"
@@ -77,7 +93,16 @@ export default function AuthButton() {
             d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
           />
         </svg>
-        <span className="hidden lg:inline">{state.displayName ?? 'Mi Cuenta'}</span>
+        <span className="hidden lg:inline">
+          {split.first && split.last ? (
+            <span className="flex flex-col leading-tight">
+              <span>{split.first}</span>
+              <span>{split.last}</span>
+            </span>
+          ) : (
+            split.first || state.displayName || 'Mi Cuenta'
+          )}
+        </span>
       </a>
     );
   }

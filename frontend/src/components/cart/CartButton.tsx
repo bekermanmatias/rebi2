@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCartStore } from '../../lib/cartStore';
 import type { CartNotification } from '../../lib/cartStore';
 
@@ -6,6 +6,12 @@ export default function CartButton() {
   const { getTotalItems, notification, dismissNotification } = useCartStore();
   const count = getTotalItems();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const displayCount = hydrated ? count : 0;
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     if (!notification) return;
@@ -21,7 +27,7 @@ export default function CartButton() {
       <a
         href="/carrito"
         className="relative flex items-center text-sm text-gray-700 transition-colors hover:text-red-600"
-        aria-label={`Mi Carrito: ${count} productos`}
+        aria-label={`Mi Carrito: ${displayCount} productos`}
       >
         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path
@@ -30,9 +36,9 @@ export default function CartButton() {
             d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
           />
         </svg>
-        {count > 0 && (
+        {displayCount > 0 && (
           <span className="absolute -left-1 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white">
-            {count > 99 ? '99+' : count}
+            {displayCount > 99 ? '99+' : displayCount}
           </span>
         )}
       </a>

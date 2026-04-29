@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseAuthClient } from '../../lib/authClient';
 
+const API_BASE_URL = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+
 type Mode = 'login' | 'register' | 'forgot';
 
 function getRedirectPath() {
@@ -124,18 +126,21 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
           setLoading(false);
           return;
         }
-        const { error: e2 } = await supabaseAuthClient.auth.signInWithOtp({
-          email: email.trim(),
-          options: {
-            shouldCreateUser: true,
-            emailRedirectTo:
-              typeof window !== 'undefined'
-                ? `${window.location.origin}/login?redirect=${encodeURIComponent(redirectPath)}`
-                : undefined,
-          },
+        const res = await fetch(`${API_BASE_URL}/auth/register/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim() }),
         });
-        if (e2) throw e2;
-        setMessage('Te enviamos un enlace a tu correo para acceder a tu cuenta.');
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; emailDelivered?: boolean; message?: string; error?: string; code?: string }
+          | null;
+        if (!res.ok) {
+          throw new Error(data?.error || 'No se pudo iniciar el registro.');
+        }
+        setMessage(
+          data?.message ||
+            'Te enviamos un correo con un enlace para activar tu cuenta y crear tu contraseña.'
+        );
       } else if (mode === 'forgot') {
         if (!email.trim()) {
           setError('Ingresá tu email.');
@@ -262,8 +267,8 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
 
           {mode === 'register' && (
             <p className="px-1 pt-1 text-xs leading-relaxed text-gray-500">
-              Te enviaremos un enlace a tu correo para acceder a tu cuenta.
-              Tus datos se usan para procesar tus pedidos y mejorar tu experiencia.
+              Ingresá tu correo: te enviaremos un enlace seguro para que confirmes tu email
+              y elijas una contraseña. El enlace expira en 24 horas.
             </p>
           )}
 
