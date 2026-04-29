@@ -1,12 +1,26 @@
 ---
 import CartButton from './cart/CartButton';
 import AuthButton from './AuthButton';
-import { getCategories } from '../lib/data';
+import { getCategories, getHomeFeatureSection } from '../lib/data';
 
 const categories = await getCategories();
+const topAlert = await getHomeFeatureSection('barra-superior');
+const topAlertText =
+  topAlert?.title?.trim() ||
+  '¡Aprovecha nuestros descuentos y promociones! Aboná en hasta 6 pagos con tarjeta';
+const showTopAlert = topAlert?.is_active !== false;
 ---
 
 <div id="site-header" class="sticky top-0 z-40 transition-transform duration-300">
+  <!-- Construction alert bar -->
+  {showTopAlert && (
+    <div class="text-sm font-bold tracking-wide text-black sm:text-base" style="background-color: rgb(243, 177, 47);">
+      <div class="mx-auto flex max-w-[1400px] items-center justify-center px-3 py-1 text-center sm:px-6 lg:px-8">
+        {topAlertText}
+      </div>
+    </div>
+  )}
+
   <!-- Top bar -->
   <div class="hidden bg-gray-900 text-xs text-gray-200 md:block">
     <div class="mx-auto flex max-w-[1400px] items-center justify-end gap-6 px-4 py-1.5 sm:px-6 lg:px-8">
@@ -35,7 +49,7 @@ const categories = await getCategories();
       </a>
 
       <!-- Search bar -->
-      <form action="/productos" method="get" class="relative mx-4 hidden flex-1 md:block">
+      <form action="/productos" method="get" class="relative mx-2 hidden flex-1 md:block">
         <div class="relative">
           <svg class="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -52,12 +66,24 @@ const categories = await getCategories();
       </form>
 
       <!-- Right actions -->
-      <div class="ml-auto flex items-center gap-2 sm:gap-4">
+      <div class="ml-auto flex items-center gap-3 sm:gap-5">
         <!-- Mobile search -->
         <a href="/productos" class="rounded-lg p-2 text-gray-600 hover:bg-gray-100 md:hidden">
           <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
+        </a>
+
+        <!-- Nuestra sucursal -->
+        <a href="/sucursales" class="hidden items-center gap-2 text-sm font-bold text-gray-700 transition-colors hover:text-red-600 lg:flex">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span class="leading-[1.05]">
+            <span class="block">Nuestra</span>
+            <span class="block">Sucursal</span>
+          </span>
         </a>
 
         <!-- Mi Cuenta / Auth -->

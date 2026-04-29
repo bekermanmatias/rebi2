@@ -14,6 +14,7 @@ import {
 
 const PROMOS_SECTION_SLUG = 'ceramicos';
 const SHIPPING_SECTION_SLUG = 'envios-info';
+const TOP_ALERT_SLUG = 'barra-superior';
 const FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=1600&auto=format&fit=crop';
 
@@ -36,7 +37,13 @@ export default function HomeFeatureSectionManager() {
   const [okReviews, setOkReviews] = useState('');
   const [uploadingReviewAvatarIdx, setUploadingReviewAvatarIdx] = useState<number | null>(null);
   const [uploadingReviewAttachIdx, setUploadingReviewAttachIdx] = useState<number | null>(null);
+  const [savingTopAlert, setSavingTopAlert] = useState(false);
+  const [okTopAlert, setOkTopAlert] = useState('');
   const [savedSnapshot, setSavedSnapshot] = useState('');
+  const [topAlert, setTopAlert] = useState({
+    title: '¡Aprovecha nuestros descuentos y promociones! Aboná en hasta 6 pagos con tarjeta',
+    is_active: true,
+  });
   const [form, setForm] = useState({
     title: 'Ceramicos y porcelanatos',
     image_url: FALLBACK_IMAGE,
@@ -57,12 +64,14 @@ export default function HomeFeatureSectionManager() {
   ]);
 
   function makeSnapshot(params: {
+    topAlert: typeof topAlert;
     form: typeof form;
     shippingIcons: string[];
     promoCards: PromoCardRow[];
     reviews: HomeReviewRow[];
   }) {
     return JSON.stringify({
+      topAlert: params.topAlert,
       form: params.form,
       shippingIcons: params.shippingIcons,
       promoCards: params.promoCards.map((c, i) => ({
@@ -87,13 +96,21 @@ export default function HomeFeatureSectionManager() {
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
-    const [section, shippingSection, loadedReviews, cards, products] = await Promise.all([
+    const [topAlertSection, section, shippingSection, loadedReviews, cards, products] = await Promise.all([
+      fetchHomeFeatureSection(TOP_ALERT_SLUG),
       fetchHomeFeatureSection(PROMOS_SECTION_SLUG),
       fetchHomeFeatureSection(SHIPPING_SECTION_SLUG),
       fetchHomeReviews(),
       fetchPromoCards(),
       fetchProducts(),
     ]);
+    if (topAlertSection) {
+      setTopAlert({
+        title: topAlertSection.title?.trim()
+          || '¡Aprovecha nuestros descuentos y promociones! Aboná en hasta 6 pagos con tarjeta',
+        is_active: topAlertSection.is_active !== false,
+      });
+    }
     setFeaturedCount(products.filter((p) => p.is_featured === true).length);
     setPromoCards((cards ?? []).slice(0, 4));
     if (section) {
@@ -128,6 +145,13 @@ export default function HomeFeatureSectionManager() {
         is_active: true,
       })));
     }
+    const nextTopAlert = topAlertSection
+      ? {
+          title: topAlertSection.title?.trim()
+            || '¡Aprovecha nuestros descuentos y promociones! Aboná en hasta 6 pagos con tarjeta',
+          is_active: topAlertSection.is_active !== false,
+        }
+      : topAlert;
     const nextForm = section
       ? {
           title: section.title || 'Ceramicos y porcelanatos',
@@ -160,6 +184,7 @@ export default function HomeFeatureSectionManager() {
         }));
     const nextCards = (cards ?? []).slice(0, 4);
     setSavedSnapshot(makeSnapshot({
+      topAlert: nextTopAlert,
       form: nextForm,
       shippingIcons: nextShippingIcons,
       promoCards: nextCards,
@@ -167,6 +192,32 @@ export default function HomeFeatureSectionManager() {
     }));
     setLoading(false);
   }, []);
+
+  async function handleSaveTopAlert() {
+    setSavingTopAlert(true);
+    setError('');
+    setOkTopAlert('');
+    const success = await saveHomeFeatureSection(TOP_ALERT_SLUG, {
+      title: topAlert.title.trim() || '¡Aprovecha nuestros descuentos y promociones! Aboná en hasta 6 pagos con tarjeta',
+      image_url: null,
+      target_link: null,
+      tile_images: [],
+      is_active: topAlert.is_active,
+    });
+    setSavingTopAlert(false);
+    if (!success) {
+      setError('No se pudo guardar la barra superior.');
+      return;
+    }
+    setOkTopAlert('Barra superior guardada correctamente.');
+    setSavedSnapshot(makeSnapshot({
+      topAlert,
+      form,
+      shippingIcons,
+      promoCards,
+      reviews,
+    }));
+  }
 
   useEffect(() => {
     load();
@@ -217,6 +268,7 @@ export default function HomeFeatureSectionManager() {
     }
     setOk('Sección guardada correctamente.');
     setSavedSnapshot(makeSnapshot({
+      topAlert,
       form,
       shippingIcons,
       promoCards,
@@ -258,6 +310,7 @@ export default function HomeFeatureSectionManager() {
     }
     setOkShipping('Íconos de envíos guardados correctamente.');
     setSavedSnapshot(makeSnapshot({
+      topAlert,
       form,
       shippingIcons,
       promoCards,
@@ -316,6 +369,7 @@ export default function HomeFeatureSectionManager() {
     setSavingPromoCards(false);
     setOkPromoCards('Cards de categorías guardadas correctamente.');
     setSavedSnapshot(makeSnapshot({
+      topAlert,
       form,
       shippingIcons,
       promoCards,
@@ -346,6 +400,7 @@ export default function HomeFeatureSectionManager() {
     }
     setOkReviews('Reseñas guardadas correctamente.');
     setSavedSnapshot(makeSnapshot({
+      topAlert,
       form,
       shippingIcons,
       promoCards,
@@ -354,6 +409,7 @@ export default function HomeFeatureSectionManager() {
   }
 
   const currentSnapshot = makeSnapshot({
+    topAlert,
     form,
     shippingIcons,
     promoCards,
@@ -392,12 +448,46 @@ export default function HomeFeatureSectionManager() {
 
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Secciones Home (excepto banners)</h1>
-        <p className="mt-1 text-sm text-gray-500">Gestioná en orden: destacados, cards, marcas, promos del mes, envíos y reseñas.</p>
+        <p className="mt-1 text-sm text-gray-500">Gestioná en orden: barra superior, destacados, cards, marcas, promos del mes, envíos y reseñas.</p>
         {hasUnsavedChanges && (
           <p className="mt-2 inline-flex rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
             Tenés cambios sin guardar
           </p>
         )}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-bold text-gray-900">0) Barra superior del sitio</h2>
+        <p className="mt-1 text-xs text-gray-500">Se muestra arriba de todo con fondo amarillo. Texto recomendado breve en una sola línea.</p>
+        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Texto de la barra</label>
+            <input
+              type="text"
+              value={topAlert.title}
+              onChange={(e) => setTopAlert((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="¡Aprovecha nuestros descuentos y promociones! Aboná en hasta 6 pagos con tarjeta"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+            <label className="mt-3 inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={topAlert.is_active}
+                onChange={(e) => setTopAlert((prev) => ({ ...prev, is_active: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-red-600"
+              />
+              Barra activa
+            </label>
+          </div>
+          <button
+            onClick={handleSaveTopAlert}
+            disabled={savingTopAlert}
+            className="rounded-xl bg-gray-900 px-8 py-3 text-base font-extrabold text-white shadow-sm hover:bg-gray-800 disabled:opacity-50"
+          >
+            {savingTopAlert ? 'Guardando...' : 'Guardar barra superior'}
+          </button>
+        </div>
+        {okTopAlert && <p className="mt-3 text-sm font-medium text-green-600">{okTopAlert}</p>}
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

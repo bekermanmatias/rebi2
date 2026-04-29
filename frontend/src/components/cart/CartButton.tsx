@@ -20,10 +20,10 @@ export default function CartButton() {
     <div className="relative">
       <a
         href="/carrito"
-        className="relative flex items-center gap-2 text-sm text-gray-700 transition-colors hover:text-red-600"
+        className="relative flex items-center text-sm text-gray-700 transition-colors hover:text-red-600"
         aria-label={`Mi Carrito: ${count} productos`}
       >
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -35,7 +35,6 @@ export default function CartButton() {
             {count > 99 ? '99+' : count}
           </span>
         )}
-        <span className="hidden lg:inline">Mi Carrito</span>
       </a>
 
       {notification && (

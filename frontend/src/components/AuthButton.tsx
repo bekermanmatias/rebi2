@@ -4,6 +4,7 @@ import { supabaseAuthClient } from '../lib/authClient';
 type AuthState = {
   loading: boolean;
   email?: string | null;
+  displayName?: string | null;
 };
 
 function buildLoginHref() {
@@ -20,7 +21,7 @@ export default function AuthButton() {
     setLoginHref(buildLoginHref());
 
     if (!supabaseAuthClient) {
-      setState({ loading: false, email: null });
+      setState({ loading: false, email: null, displayName: null });
       return;
     }
 
@@ -30,16 +31,26 @@ export default function AuthButton() {
       .getUser()
       .then(({ data }) => {
         if (!mounted) return;
-        setState({ loading: false, email: data.user?.email ?? null });
+        const user = data.user;
+        const fullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '';
+        const firstName = typeof user?.user_metadata?.first_name === 'string' ? user.user_metadata.first_name.trim() : '';
+        const lastName = typeof user?.user_metadata?.last_name === 'string' ? user.user_metadata.last_name.trim() : '';
+        const displayName = fullName || [firstName, lastName].filter(Boolean).join(' ') || (user?.email ?? null);
+        setState({ loading: false, email: user?.email ?? null, displayName });
       })
       .catch(() => {
         if (!mounted) return;
-        setState({ loading: false, email: null });
+        setState({ loading: false, email: null, displayName: null });
       });
 
     const { data: listener } = supabaseAuthClient.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
-      setState({ loading: false, email: session?.user?.email ?? null });
+      const user = session?.user;
+      const fullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '';
+      const firstName = typeof user?.user_metadata?.first_name === 'string' ? user.user_metadata.first_name.trim() : '';
+      const lastName = typeof user?.user_metadata?.last_name === 'string' ? user.user_metadata.last_name.trim() : '';
+      const displayName = fullName || [firstName, lastName].filter(Boolean).join(' ') || (user?.email ?? null);
+      setState({ loading: false, email: user?.email ?? null, displayName });
     });
 
     return () => {
@@ -56,17 +67,17 @@ export default function AuthButton() {
     return (
       <a
         href="/mi-cuenta"
-        className="flex items-center gap-2 text-sm text-gray-700 transition-colors hover:text-red-600"
+        className="flex items-center gap-2 text-sm font-bold text-gray-700 transition-colors hover:text-red-600"
         aria-label="Mi Cuenta"
       >
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
             d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
           />
         </svg>
-        <span className="hidden lg:inline">Mi Cuenta</span>
+        <span className="hidden lg:inline">{state.displayName ?? 'Mi Cuenta'}</span>
       </a>
     );
   }
@@ -74,10 +85,10 @@ export default function AuthButton() {
   return (
     <a
       href={loginHref}
-      className="flex items-center gap-2 text-sm text-gray-700 transition-colors hover:text-red-600"
+      className="flex items-center gap-2 text-sm font-bold text-gray-700 transition-colors hover:text-red-600"
       aria-label="Ingresar"
     >
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
