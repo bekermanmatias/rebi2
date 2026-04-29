@@ -637,39 +637,44 @@ function ImageEditor({
   return (
     <div>
       <div className="mb-4 flex gap-2">
-        <input
-          type="text"
-          placeholder="URL de la imagen..."
-          value={newUrl}
-          onChange={(e) => setNewUrl(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addImage()}
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-        />
-        <button
-          onClick={addImage}
-          className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Agregar
-        </button>
-        <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-          {uploading ? 'Subiendo...' : 'Subir desde PC'}
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={uploading}
-            onChange={async (e) => {
-              const input = e.currentTarget;
-              const file = input.files?.[0];
-              if (!file) return;
-              await addImageFromFile(file);
-              input.value = '';
-            }}
-          />
-        </label>
+        <div className="flex-1">
+          <p className="mb-2 text-xs text-gray-500">Tamaño recomendado: 1200×1200 px. Formato cuadrado para mejor consistencia en catálogo.</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="URL de la imagen..."
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addImage()}
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+            <button
+              onClick={addImage}
+              className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Agregar
+            </button>
+            <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              {uploading ? 'Subiendo...' : 'Subir desde PC'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={async (e) => {
+                  const input = e.currentTarget;
+                  const file = input.files?.[0];
+                  if (!file) return;
+                  await addImageFromFile(file);
+                  input.value = '';
+                }}
+              />
+            </label>
+          </div>
+        </div>
       </div>
 
       {images.length === 0 ? (
@@ -723,6 +728,7 @@ function ImageEditor({
                   </div>
                 </div>
                 <div>
+                  <p className="mb-2 text-[11px] text-gray-500">Reemplazo recomendado: 1200×1200 px.</p>
                   <label className="inline-flex cursor-pointer items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
                     Reemplazar archivo
                     <input

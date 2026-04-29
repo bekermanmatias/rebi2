@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import ProductCard from '../components/ProductCard';
 import OffersBanner from '../components/OffersBanner';
 import RecentlyViewed from '../components/RecentlyViewed';
-import { getCategories, getProducts, getBanners, getPromoCards, getBrands } from '../lib/data';
+import { getCategories, getProducts, getBanners, getPromoCards, getBrands, getHomeFeatureSection, getHomeReviews } from '../lib/data';
 
 const categories = await getCategories();
 const featuredProducts = await getProducts({ featured: true, limit: 4 });
@@ -12,6 +12,29 @@ const products = productsRaw.slice(0, 4);
 const banners = await getBanners();
 const promoCards = await getPromoCards();
 const brands = await getBrands();
+const ceramicSection = await getHomeFeatureSection('ceramicos');
+const ceramicImage =
+  ceramicSection?.image_url ||
+  'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=1600&auto=format&fit=crop';
+const ceramicTiles = (ceramicSection?.tile_images?.length
+  ? ceramicSection.tile_images
+  : [
+      'https://images.unsplash.com/photo-1615529182904-14819c35db37?q=80&w=500&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=500&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1600607687644-c7171b42498f?q=80&w=500&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1618220179428-22790b461013?q=80&w=500&auto=format&fit=crop',
+    ]).slice(0, 4);
+const ceramicLink = ceramicSection?.target_link || '/productos?categoria=pisos';
+const shippingSection = await getHomeFeatureSection('envios-info');
+const homeReviews = await getHomeReviews();
+const shippingIcons = (shippingSection?.tile_images?.length
+  ? shippingSection.tile_images
+  : [
+      'https://cdn-icons-png.flaticon.com/512/2972/2972185.png',
+      'https://cdn-icons-png.flaticon.com/512/1046/1046857.png',
+      'https://cdn-icons-png.flaticon.com/512/2920/2920244.png',
+      'https://cdn-icons-png.flaticon.com/512/3081/3081559.png',
+    ]).slice(0, 4);
 
 
 const categoryIcons: Record<string, string> = {
@@ -75,25 +98,29 @@ const slugToIcon: Record<string, string> = {
     </div>
   </section>
 
-  <!-- Promo cards (imágenes 1.png–4.png en public) -->
-  <section class="bg-gray-100 py-6 sm:py-8">
-    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
-        <a href="/productos?categoria=pinturas" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
-          <img src="/1.png" alt="Promo 1" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-        </a>
-        <a href="/productos?categoria=plomeria" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
-          <img src="/2.png" alt="Promo 2" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-        </a>
-        <a href="/productos?categoria=electricidad" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
-          <img src="/3.png" alt="Promo 3" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-        </a>
-        <a href="/productos?categoria=pisos" class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
-          <img src="/4.png" alt="Promo 4" class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-        </a>
+  <!-- Cards de categorías (editables desde admin) -->
+  {promoCards.length > 0 && (
+    <section class="bg-gray-100 py-6 sm:py-8">
+      <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+          {promoCards.slice(0, 4).map((card) => (
+            <a
+              href={card.target_link || '/productos'}
+              class="group overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg"
+              aria-label={card.title}
+            >
+              <img
+                src={card.image_url}
+                alt={card.title}
+                class="aspect-[382/296] w-full object-cover transition-transform group-hover:scale-105"
+                loading="lazy"
+              />
+            </a>
+          ))}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  )}
 
   <!-- Marcas destacadas -->
   {brands.length > 0 && (
@@ -128,134 +155,132 @@ const slugToIcon: Record<string, string> = {
     </section>
   )}
 
-  <!-- Sección: Cerámicos y porcelanatos -->
-  <section class="bg-gray-50 py-10 sm:py-14">
-    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-      <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-2xl font-black text-gray-900 sm:text-3xl">Cerámicos y porcelanatos</h2>
-          <p class="text-lg font-bold text-red-600 sm:text-xl">Renová con lo mejor</p>
-          <p class="mt-1 text-sm text-gray-500">Los mejores pisos, a un click de distancia.</p>
-          <a href="/productos?categoria=pisos" class="mt-3 inline-block rounded-full bg-gray-900 px-5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-gray-700">
-            Pisos y revestimientos
-          </a>
-        </div>
-        <div class="hidden overflow-hidden rounded-2xl sm:block sm:w-64 lg:w-80">
-          <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=600&auto=format&fit=crop" alt="Cerámicos y porcelanatos" class="h-40 w-full object-cover lg:h-48" loading="lazy" />
-        </div>
-      </div>
-
-      <div class="relative">
-        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1615529182904-14819c35db37?q=80&w=400&auto=format&fit=crop" alt="Laja" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-            </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">LAJA 12 46X46 1RA x CAJA</p>
-              <p class="mt-0.5 text-xs text-gray-500">Su venta es Solo por caja cerr...</p>
-            </div>
-          </a>
-          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?q=80&w=400&auto=format&fit=crop" alt="Ceibo Beige" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-            </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">CEIBO BEIGE 20 36X36 1RA</p>
-              <p class="mt-0.5 text-xs text-gray-500">Su venta es Solo por caja cerr...</p>
-            </div>
-          </a>
-          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1600607687644-c7171b42498f?q=80&w=400&auto=format&fit=crop" alt="Esmeralda" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-            </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">ESMERALDA 20 36X36 1ERA</p>
-              <p class="mt-0.5 text-xs text-gray-500">Su venta es Solo por caja cerr...</p>
-            </div>
-          </a>
-          <a href="/productos?categoria=pisos" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1618220179428-22790b461013?q=80&w=400&auto=format&fit=crop" alt="Calacata" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-            </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">CALACATA BR 5 60X60 1RA</p>
-              <p class="mt-0.5 text-xs text-gray-500">Su venta es solo por caja cerr...</p>
-            </div>
-          </a>
-        </div>
-      </div>
-
-      <div class="mt-8 text-center">
-        <a href="/productos?categoria=pisos" class="inline-flex items-center gap-2 rounded-full bg-gray-900 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-700">
-          Ver más productos
+  <!-- Sección configurable: imagen + 4 cuadros -->
+  {ceramicSection?.is_active !== false && (
+    <section class="bg-gray-50 py-10 sm:py-14">
+      <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <a href={ceramicLink} class="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <img
+            src={ceramicImage}
+            alt={ceramicSection?.title || 'Destacado'}
+            class="h-40 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-44 lg:h-52"
+            loading="lazy"
+          />
         </a>
+
+        <div class="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {ceramicTiles.map((tile, idx) => (
+            <a href={ceramicLink} class="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" aria-label={`Tile ${idx + 1}`}>
+              <img src={tile} alt={`Tile ${idx + 1}`} class="aspect-square w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+            </a>
+          ))}
+        </div>
+
+        <div class="mt-8 text-center">
+          <a href={ceramicLink} class="inline-flex items-center gap-2 rounded-full bg-gray-900 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-700">
+            Ver más productos
+          </a>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <!-- Sección: Envios -->
+  <section class="bg-white py-10 sm:py-14">
+    <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+      <div class="rounded-2xl border border-gray-200 bg-white p-6 sm:p-8">
+        <div class="text-center">
+          <h2 class="text-3xl font-black uppercase text-gray-900 sm:text-5xl">
+            Envíos <span class="text-red-600">a todo el Perú</span>
+          </h2>
+          <p class="mt-2 text-sm font-medium text-gray-600 sm:text-base">Rápidos, confiables y con seguimiento completo</p>
+          <div class="mx-auto mt-3 h-1 w-28 rounded-full bg-red-600"></div>
+        </div>
+
+        <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { title: 'Envíos diarios', desc: 'Realizamos envíos de lunes a sábado, excepto feriados.' },
+            { title: 'Embalaje seguro', desc: 'Todos los pedidos son embalados cuidadosamente y etiquetados.' },
+            { title: 'Agencia de transporte', desc: 'Llevamos tu pedido a agencias de transporte sin costo adicional.' },
+            { title: 'Seguimiento completo', desc: 'Te enviamos la guía para que puedas hacer tracking y coordinar.' },
+          ].map((item, idx) => (
+            <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <div class="mb-3 flex items-center gap-3">
+                <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white p-2 shadow-sm">
+                  <img src={shippingIcons[idx] || shippingIcons[0]} alt={item.title} class="h-full w-full object-contain" loading="lazy" />
+                </div>
+                <p class="text-base font-extrabold uppercase text-gray-900">{item.title}</p>
+              </div>
+              <p class="text-sm text-gray-600">{item.desc}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Sección: Baño -->
-  <section class="bg-white py-10 sm:py-14">
+  <!-- Sección: Reseñas -->
+  <section class="bg-white pb-12 sm:pb-16">
     <div class="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-      <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-2xl font-black text-gray-900 sm:text-3xl">Baño</h2>
-          <p class="text-lg font-bold text-red-600 sm:text-xl">Renová con lo mejor</p>
-          <p class="mt-1 text-sm text-gray-500">Diseño inteligente para tu hogar</p>
-          <a href="/productos?categoria=plomeria" class="mt-3 inline-block rounded-full bg-gray-900 px-5 py-2 text-xs font-bold uppercase tracking-wide text-white transition-colors hover:bg-gray-700">
-            Baño
-          </a>
-        </div>
-        <div class="hidden overflow-hidden rounded-2xl sm:block sm:w-64 lg:w-80">
-          <img src="https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?q=80&w=600&auto=format&fit=crop" alt="Baño" class="h-40 w-full object-cover lg:h-48" loading="lazy" />
-        </div>
+      <div class="text-center">
+        <h2 class="text-3xl font-black uppercase leading-tight text-gray-900 sm:text-5xl">
+          Lo que dicen
+          <br />
+          <span class="text-red-600">nuestros clientes</span>
+        </h2>
+        <div class="mx-auto mt-3 h-1 w-28 rounded-full bg-red-600"></div>
       </div>
 
-      <div class="relative">
-        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1620626011761-996317b8d101?q=80&w=400&auto=format&fit=crop" alt="Ducha PFR" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+      <div class="mt-8 overflow-hidden">
+        <div class="reviews-track flex w-max gap-4">
+          {[...(homeReviews.length >= 10 ? homeReviews : Array.from({ length: 10 }).map((_, i) => ({
+            id: `fallback-${i}`,
+            author_name: `Cliente REBI ${i + 1}`,
+            review_text: 'Excelente atención y entrega rápida. Productos de muy buena calidad.',
+            stars: 5,
+            display_order: i,
+            is_active: true,
+          }))), ...(homeReviews.length >= 10 ? homeReviews : Array.from({ length: 10 }).map((_, i) => ({
+            id: `fallback-dup-${i}`,
+            author_name: `Cliente REBI ${i + 1}`,
+            review_text: 'Excelente atención y entrega rápida. Productos de muy buena calidad.',
+            stars: 5,
+            display_order: i,
+            is_active: true,
+          })))]
+            .map((review, idx) => (
+          <article class="w-[280px] shrink-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            {review.attachment_url && (
+              <div class="mb-3 overflow-hidden rounded-lg border border-gray-200">
+                <img src={review.attachment_url} alt={`Adjunto de ${review.author_name}`} class="h-28 w-full object-cover" loading="lazy" />
+              </div>
+            )}
+            <div class="mb-3 flex items-center gap-1 text-amber-400">
+              {Array.from({ length: Math.max(1, Math.min(5, Number(review.stars) || 5)) }).map(() => (
+                <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.176 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81H7.03a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
             </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">DUCHA PFR - 021 (120 × 80)</p>
-              <p class="mt-0.5 text-xs text-gray-500">Medidas: 120 × 80 × 225 cm.</p>
+            <p class="min-h-[88px] text-sm leading-6 text-gray-600">"{review.review_text}"</p>
+            <div class="mt-5 flex items-center gap-2">
+              {review.avatar_url ? (
+                <img src={review.avatar_url} alt={review.author_name} class="h-8 w-8 rounded-full border border-gray-200 object-cover" loading="lazy" />
+              ) : (
+                <div class="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-500">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A9 9 0 1118.88 17.8M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+              )}
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-900">{review.author_name}</p>
+                <p class="text-[11px] text-gray-400">Reseña #{idx + 1}</p>
+              </div>
             </div>
-          </a>
-          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?q=80&w=400&auto=format&fit=crop" alt="Ducha S-3090" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-            </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">DUCHA S-3090 (100 × 100)</p>
-              <p class="mt-0.5 text-xs text-gray-500">Medidas: 1000 × 1000 × 2150</p>
-            </div>
-          </a>
-          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1564540583246-934409427776?q=80&w=400&auto=format&fit=crop" alt="Ducha PFR - 901" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-            </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">DUCHA PFR - 901 (90 × 90)</p>
-              <p class="mt-0.5 text-xs text-gray-500">Medidas: 900 × 900 × 2150 m...</p>
-            </div>
-          </a>
-          <a href="/productos?categoria=plomeria" class="group rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-            <div class="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-gray-50">
-              <img src="https://images.unsplash.com/photo-1585704032915-c3400ca199e7?q=80&w=400&auto=format&fit=crop" alt="Grifería Bidet" class="h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-            </div>
-            <div class="mt-3">
-              <p class="text-sm font-bold text-gray-900 truncate">GRIFERIA BIDET LINEA PUEL</p>
-              <p class="mt-0.5 text-xs text-gray-500">Color: Cromo. Tipo: Monocoma...</p>
-            </div>
-          </a>
+          </article>
+        ))}
         </div>
-      </div>
-
-      <div class="mt-8 text-center">
-        <a href="/productos?categoria=plomeria" class="inline-flex items-center gap-2 rounded-full bg-gray-900 px-8 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-700">
-          Ver más productos
-        </a>
       </div>
     </div>
   </section>
@@ -392,6 +417,21 @@ const slugToIcon: Record<string, string> = {
     animation-play-state: paused;
   }
   @keyframes brands-marquee-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .reviews-track {
+    animation: reviews-marquee-scroll 42s linear infinite;
+  }
+  .reviews-track:hover {
+    animation-play-state: paused;
+  }
+  @keyframes reviews-marquee-scroll {
     from {
       transform: translateX(0);
     }

@@ -27,6 +27,24 @@ type AuthUser = {
   id: string;
   email?: string;
 };
+type HomeFeatureSectionRow = {
+  slug: string;
+  title: string | null;
+  image_url: string | null;
+  target_link: string | null;
+  tile_images: string[] | null;
+  is_active: boolean | null;
+};
+type HomeReviewRow = {
+  id: string;
+  author_name: string | null;
+  review_text: string | null;
+  avatar_url: string | null;
+  attachment_url: string | null;
+  stars: number | null;
+  display_order: number | null;
+  is_active: boolean | null;
+};
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -284,6 +302,73 @@ app.get('/promo-cards', asyncHandler(async (_req, res) => {
   res.json(data ?? []);
 }));
 
+app.get('/home-sections/:slug', asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const paramsSchema = z.object({ slug: z.string().min(1) });
+  const parsed = paramsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('home_feature_sections')
+    .select('slug, title, image_url, target_link, tile_images, is_active')
+    .eq('slug', parsed.data.slug)
+    .maybeSingle();
+  if (error) {
+    console.error('Error fetching home section', error);
+    res.status(500).json({ error: 'Error fetching home section' });
+    return;
+  }
+  if (!data || data.is_active === false) {
+    res.status(404).json({ error: 'Section not found' });
+    return;
+  }
+  const row = data as HomeFeatureSectionRow;
+  res.json({
+    slug: row.slug,
+    title: row.title ?? '',
+    image_url: row.image_url ?? null,
+    target_link: row.target_link ?? null,
+    tile_images: Array.isArray(row.tile_images) ? row.tile_images : [],
+    is_active: row.is_active !== false,
+  });
+}));
+
+app.get('/home-reviews', asyncHandler(async (_req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('home_reviews')
+    .select('id, author_name, review_text, avatar_url, attachment_url, stars, display_order, is_active')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+    .limit(30);
+  if (error) {
+    console.error('Error fetching home reviews', error);
+    res.status(500).json({ error: 'Error fetching home reviews' });
+    return;
+  }
+  res.json(
+    (data ?? []).map((row: HomeReviewRow) => ({
+      id: row.id,
+      author_name: row.author_name ?? 'Cliente REBI',
+      review_text: row.review_text ?? '',
+      avatar_url: row.avatar_url ?? null,
+      attachment_url: row.attachment_url ?? null,
+      stars: Number(row.stars ?? 5),
+      display_order: Number(row.display_order ?? 0),
+      is_active: row.is_active !== false,
+    }))
+  );
+}));
+
 app.get('/products', asyncHandler(async (req, res) => {
   if (!supabase) {
     res.status(500).json({ error: 'Supabase not configured' });
@@ -484,6 +569,153 @@ app.post('/admin/orders/:id/accept', requireAdmin, asyncHandler(async (req, res)
   res.json({ order: data, whatsappUrl });
 }));
 
+app.get('/admin/home-sections/:slug', requireAdminPin, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const paramsSchema = z.object({ slug: z.string().min(1) });
+  const parsed = paramsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('home_feature_sections')
+    .select('slug, title, image_url, target_link, tile_images, is_active')
+    .eq('slug', parsed.data.slug)
+    .maybeSingle();
+  if (error) {
+    console.error('Error fetching admin home section', error);
+    res.status(500).json({ error: 'Error fetching admin home section' });
+    return;
+  }
+  if (!data) {
+    res.json({
+      slug: parsed.data.slug,
+      title: '',
+      image_url: null,
+      target_link: null,
+      tile_images: [],
+      is_active: true,
+    });
+    return;
+  }
+  res.json(data);
+}));
+
+app.put('/admin/home-sections/:slug', requireAdminPin, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const paramsSchema = z.object({ slug: z.string().min(1) });
+  const parsedParams = paramsSchema.safeParse(req.params);
+  if (!parsedParams.success) {
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
+  }
+  const bodySchema = z.object({
+    title: z.string().optional().default(''),
+    image_url: z.string().url().nullable().optional(),
+    target_link: z.string().nullable().optional(),
+    tile_images: z.array(z.string().url()).max(4).optional().default([]),
+    is_active: z.boolean().optional().default(true),
+  });
+  const parsedBody = bodySchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+  const payload = parsedBody.data;
+  const { error } = await supabase
+    .from('home_feature_sections')
+    .upsert({
+      slug: parsedParams.data.slug,
+      title: payload.title,
+      image_url: payload.image_url ?? null,
+      target_link: payload.target_link ?? null,
+      tile_images: payload.tile_images,
+      is_active: payload.is_active,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'slug' });
+  if (error) {
+    console.error('Error saving admin home section', error);
+    res.status(500).json({ error: 'Error saving admin home section' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+app.get('/admin/home-reviews', requireAdminPin, asyncHandler(async (_req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('home_reviews')
+    .select('id, author_name, review_text, avatar_url, attachment_url, stars, display_order, is_active')
+    .order('display_order', { ascending: true })
+    .limit(50);
+  if (error) {
+    console.error('Error fetching admin home reviews', error);
+    res.status(500).json({ error: 'Error fetching admin home reviews' });
+    return;
+  }
+  res.json(data ?? []);
+}));
+
+app.put('/admin/home-reviews', requireAdminPin, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const bodySchema = z.object({
+    reviews: z.array(z.object({
+      author_name: z.string().min(1).max(80),
+      review_text: z.string().min(1).max(500),
+      avatar_url: z.string().url().nullable().optional(),
+      attachment_url: z.string().url().nullable().optional(),
+      stars: z.number().int().min(1).max(5),
+      display_order: z.number().int().min(0).max(200),
+      is_active: z.boolean(),
+    })).min(1).max(20),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+
+  const { error: deleteError } = await supabase
+    .from('home_reviews')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+  if (deleteError) {
+    console.error('Error replacing home reviews (delete)', deleteError);
+    res.status(500).json({ error: 'Error saving home reviews' });
+    return;
+  }
+
+  const { error: insertError } = await supabase
+    .from('home_reviews')
+    .insert(parsed.data.reviews.map((r) => ({
+      author_name: r.author_name,
+      review_text: r.review_text,
+      avatar_url: r.avatar_url ?? null,
+      attachment_url: r.attachment_url ?? null,
+      stars: r.stars,
+      display_order: r.display_order,
+      is_active: r.is_active,
+    })));
+  if (insertError) {
+    console.error('Error replacing home reviews (insert)', insertError);
+    res.status(500).json({ error: 'Error saving home reviews' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
 // Admin: validar PIN del panel
 app.post('/admin/verify-pin', requireAdminPin, asyncHandler(async (_req, res) => {
   if (!adminPanelPin) {
@@ -501,7 +733,7 @@ app.post('/admin/upload-image', requireAdminPin, asyncHandler(async (req, res) =
   }
 
   const bodySchema = z.object({
-    section: z.enum(['products', 'banners', 'promo-cards']),
+    section: z.enum(['products', 'banners', 'promo-cards', 'home-sections']),
     filename: z.string().min(1),
     mimeType: z.string().min(1),
     base64: z.string().min(1),

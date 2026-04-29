@@ -89,3 +89,23 @@ export interface Banner {
   is_active: boolean;
   created_at?: string;
 }
+
+export interface HomeFeatureSection {
+  slug: string;
+  title: string | null;
+  image_url: string | null;
+  target_link: string | null;
+  tile_images: string[];
+  is_active: boolean;
+}
+
+export interface HomeReview {
+  id: string;
+  author_name: string;
+  review_text: string;
+  avatar_url?: string | null;
+  attachment_url?: string | null;
+  stars: number;
+  display_order: number;
+  is_active: boolean;
+}

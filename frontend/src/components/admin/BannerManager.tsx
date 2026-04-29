@@ -89,6 +89,7 @@ export default function BannerManager() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Imagen Desktop (1920×400)</label>
+                <p className="mb-2 text-xs text-gray-500">Tamaño recomendado: 1920×400 px.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -127,6 +128,7 @@ export default function BannerManager() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Imagen Mobile (1080×1080)</label>
+                <p className="mb-2 text-xs text-gray-500">Tamaño recomendado: 1080×1080 px.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"

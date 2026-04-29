@@ -1,0 +1,3 @@
+ALTER TABLE home_reviews
+ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+ADD COLUMN IF NOT EXISTS attachment_url TEXT;

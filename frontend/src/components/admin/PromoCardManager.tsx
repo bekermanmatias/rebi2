@@ -92,6 +92,7 @@ export default function PromoCardManager() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">URL de imagen *</label>
+                <p className="mb-2 text-xs text-gray-500">Tamaño recomendado: 1200×930 px aprox. Mantener formato vertical corto como las cards del home.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"

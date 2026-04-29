@@ -346,9 +346,111 @@ export function getAdminPin(): string {
   return sessionStorage.getItem(ADMIN_PIN_KEY) ?? '';
 }
 
+export interface HomeFeatureSectionRow {
+  slug: string;
+  title: string | null;
+  image_url: string | null;
+  target_link: string | null;
+  tile_images: string[];
+  is_active: boolean;
+}
+
+export interface HomeReviewRow {
+  author_name: string;
+  review_text: string;
+  avatar_url?: string | null;
+  attachment_url?: string | null;
+  stars: number;
+  display_order: number;
+  is_active: boolean;
+}
+
+export async function fetchHomeFeatureSection(slug: string): Promise<HomeFeatureSectionRow | null> {
+  const token = await getAccessToken();
+  const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+  const res = await fetch(`${apiBase}/admin/home-sections/${encodeURIComponent(slug)}`, {
+    method: 'GET',
+    headers: {
+      'accept': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'x-admin-pin': getAdminPin(),
+    },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return {
+    slug: typeof data?.slug === 'string' ? data.slug : slug,
+    title: typeof data?.title === 'string' ? data.title : null,
+    image_url: typeof data?.image_url === 'string' ? data.image_url : null,
+    target_link: typeof data?.target_link === 'string' ? data.target_link : null,
+    tile_images: Array.isArray(data?.tile_images) ? data.tile_images.filter((x: unknown): x is string => typeof x === 'string') : [],
+    is_active: data?.is_active !== false,
+  };
+}
+
+export async function saveHomeFeatureSection(
+  slug: string,
+  payload: Omit<HomeFeatureSectionRow, 'slug'>
+): Promise<boolean> {
+  const token = await getAccessToken();
+  const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+  const res = await fetch(`${apiBase}/admin/home-sections/${encodeURIComponent(slug)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'x-admin-pin': getAdminPin(),
+    },
+    body: JSON.stringify(payload),
+  });
+  return res.ok;
+}
+
+export async function fetchHomeReviews(): Promise<HomeReviewRow[]> {
+  const token = await getAccessToken();
+  const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+  const res = await fetch(`${apiBase}/admin/home-reviews`, {
+    method: 'GET',
+    headers: {
+      'accept': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'x-admin-pin': getAdminPin(),
+    },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data.map((r: any, idx: number) => ({
+    author_name: typeof r?.author_name === 'string' && r.author_name.trim() ? r.author_name : `Cliente REBI ${idx + 1}`,
+    review_text: typeof r?.review_text === 'string' && r.review_text.trim()
+      ? r.review_text
+      : 'Excelente atención y entrega rápida. Productos de muy buena calidad.',
+    avatar_url: typeof r?.avatar_url === 'string' ? r.avatar_url : null,
+    attachment_url: typeof r?.attachment_url === 'string' ? r.attachment_url : null,
+    stars: Math.min(5, Math.max(1, Number(r?.stars ?? 5))),
+    display_order: Number.isFinite(Number(r?.display_order)) ? Number(r.display_order) : idx,
+    is_active: r?.is_active !== false,
+  }));
+}
+
+export async function saveHomeReviews(reviews: HomeReviewRow[]): Promise<boolean> {
+  const token = await getAccessToken();
+  const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+  const res = await fetch(`${apiBase}/admin/home-reviews`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'x-admin-pin': getAdminPin(),
+    },
+    body: JSON.stringify({ reviews }),
+  });
+  return res.ok;
+}
+
 export async function uploadAdminImage(
   file: File,
-  section: 'products' | 'banners' | 'promo-cards',
+  section: 'products' | 'banners' | 'promo-cards' | 'home-sections',
   replaceUrl?: string | null
 ): Promise<{ publicUrl: string | null; error?: string }> {
   const token = await getAccessToken();
