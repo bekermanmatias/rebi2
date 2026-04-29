@@ -1,9 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabaseAuthClient } from '../../lib/authClient';
 
 const API_BASE_URL = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
 type Mode = 'login' | 'register' | 'forgot';
+type RegisterChannel = 'email' | 'whatsapp';
+type CountryOption = { code: string; dial: string };
+
+const WHATSAPP_COUNTRIES: CountryOption[] = [
+  { code: 'PE', dial: '+51' },
+  { code: 'AR', dial: '+54' },
+  { code: 'CL', dial: '+56' },
+  { code: 'UY', dial: '+598' },
+  { code: 'PY', dial: '+595' },
+  { code: 'BO', dial: '+591' },
+  { code: 'CO', dial: '+57' },
+  { code: 'EC', dial: '+593' },
+  { code: 'MX', dial: '+52' },
+  { code: 'US', dial: '+1' },
+];
+
+function flagUrl(code: string): string {
+  return `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
+}
 
 function getRedirectPath() {
   if (typeof window === 'undefined') return '/';
@@ -66,13 +85,22 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [whatsappCountry, setWhatsappCountry] = useState<string>('PE');
+  const [countryMenuOpen, setCountryMenuOpen] = useState(false);
+  const [registerChannel, setRegisterChannel] = useState<RegisterChannel>('whatsapp');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState<'google' | 'facebook' | null>(null);
+  const countryMenuRef = useRef<HTMLDivElement | null>(null);
   const redirectPath = useMemo(() => getRedirectPath(), []);
+  const selectedWhatsappCountry = useMemo(
+    () => WHATSAPP_COUNTRIES.find((c) => c.code === whatsappCountry) ?? WHATSAPP_COUNTRIES[0],
+    [whatsappCountry]
+  );
 
   useEffect(() => {
     if (!supabaseAuthClient) return;
@@ -93,9 +121,29 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
     return () => listener.subscription.unsubscribe();
   }, [redirectPath, isModal, onClose]);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!countryMenuRef.current) return;
+      if (!countryMenuRef.current.contains(event.target as Node)) {
+        setCountryMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   function resetMessages() {
     setError(null);
     setMessage(null);
+  }
+
+  function buildWhatsappForApi(value: string): string {
+    const raw = value.trim();
+    if (!raw) return '';
+    if (raw.startsWith('+')) return raw;
+    const digits = raw.replace(/\D+/g, '');
+    const selected = WHATSAPP_COUNTRIES.find((c) => c.code === whatsappCountry) ?? WHATSAPP_COUNTRIES[0];
+    return `${selected.dial}${digits}`;
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -121,15 +169,28 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
         });
         if (e1) throw e1;
       } else if (mode === 'register') {
-        if (!email.trim()) {
+        if (registerChannel === 'email' && !email.trim()) {
           setError('Ingresá tu email.');
           setLoading(false);
           return;
         }
-        const res = await fetch(`${API_BASE_URL}/auth/register/start`, {
+        if (registerChannel === 'whatsapp' && !whatsapp.trim()) {
+          setError('Ingresá tu número de WhatsApp.');
+          setLoading(false);
+          return;
+        }
+
+        const endpoint = registerChannel === 'whatsapp'
+          ? `${API_BASE_URL}/auth/register/start-whatsapp`
+          : `${API_BASE_URL}/auth/register/start`;
+        const payload = registerChannel === 'whatsapp'
+          ? { email: email.trim() || undefined, whatsapp: buildWhatsappForApi(whatsapp) }
+          : { email: email.trim() };
+
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim() }),
+          body: JSON.stringify(payload),
         });
         const data = (await res.json().catch(() => null)) as
           | { ok?: boolean; emailDelivered?: boolean; message?: string; error?: string; code?: string }
@@ -139,7 +200,9 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
         }
         setMessage(
           data?.message ||
-            'Te enviamos un correo con un enlace para activar tu cuenta y crear tu contraseña.'
+            (registerChannel === 'whatsapp'
+              ? 'Te enviamos un WhatsApp con un enlace para activar tu cuenta y crear tu contraseña.'
+              : 'Te enviamos un correo con un enlace para activar tu cuenta y crear tu contraseña.')
         );
       } else if (mode === 'forgot') {
         if (!email.trim()) {
@@ -194,7 +257,7 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
     },
     register: {
       title: 'Registrarse',
-      subtitle: 'Solo necesitamos tu correo electrónico',
+      subtitle: 'Elegí registrarte por WhatsApp o por email',
       cta: 'Registrarse',
     },
     forgot: {
@@ -227,19 +290,21 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
         </div>
 
         <form className="mt-6 space-y-3" onSubmit={handleSubmit}>
-          <label className="relative block">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
-              <MailIcon />
-            </span>
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="Correo electrónico"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-3 text-sm text-gray-900 placeholder-gray-400 transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/15"
-            />
-          </label>
+          {mode !== 'register' && (
+            <label className="relative block">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                <MailIcon />
+              </span>
+              <input
+                type="email"
+                autoComplete="email"
+                placeholder="Correo electrónico"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-3 text-sm text-gray-900 placeholder-gray-400 transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/15"
+              />
+            </label>
+          )}
 
           {mode === 'login' && (
             <label className="relative block">
@@ -266,10 +331,111 @@ export default function AuthPage({ onClose }: AuthPageProps = {}) {
           )}
 
           {mode === 'register' && (
-            <p className="px-1 pt-1 text-xs leading-relaxed text-gray-500">
-              Ingresá tu correo: te enviaremos un enlace seguro para que confirmes tu email
-              y elijas una contraseña. El enlace expira en 24 horas.
-            </p>
+            <>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRegisterChannel('whatsapp')}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                    registerChannel === 'whatsapp'
+                      ? 'border-red-600 bg-red-50 text-red-700'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegisterChannel('email')}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                    registerChannel === 'email'
+                      ? 'border-red-600 bg-red-50 text-red-700'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Email
+                </button>
+              </div>
+
+              {registerChannel === 'whatsapp' ? (
+                <div className="grid grid-cols-[minmax(0,96px)_1fr] gap-2 pt-2">
+                  <div className="relative" ref={countryMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setCountryMenuOpen((v) => !v)}
+                      className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/15"
+                      aria-haspopup="listbox"
+                      aria-expanded={countryMenuOpen}
+                    >
+                      <span className="flex items-center gap-2">
+                        <img
+                          src={flagUrl(selectedWhatsappCountry.code)}
+                          alt={selectedWhatsappCountry.code}
+                          className="h-4 w-6 rounded-[2px] object-cover"
+                          loading="lazy"
+                        />
+                        <span>{selectedWhatsappCountry.dial}</span>
+                      </span>
+                      <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {countryMenuOpen && (
+                      <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                        {WHATSAPP_COUNTRIES.map((country) => (
+                          <button
+                            key={country.code}
+                            type="button"
+                            onClick={() => {
+                              setWhatsappCountry(country.code);
+                              setCountryMenuOpen(false);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+                          >
+                            <img
+                              src={flagUrl(country.code)}
+                              alt={country.code}
+                              className="h-4 w-6 rounded-[2px] object-cover"
+                              loading="lazy"
+                            />
+                            <span>{country.dial}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <label className="relative block">
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      placeholder="Número de WhatsApp"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white py-3 px-3 text-sm text-gray-900 placeholder-gray-400 transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/15"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <label className="relative block pt-2">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                    <MailIcon />
+                  </span>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="Correo electrónico"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-3 text-sm text-gray-900 placeholder-gray-400 transition focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/15"
+                  />
+                </label>
+              )}
+              <p className="px-1 pt-1 text-xs leading-relaxed text-gray-500">
+                {registerChannel === 'whatsapp'
+                  ? 'Te enviaremos un WhatsApp con un enlace seguro para activar tu cuenta y elegir una contraseña.'
+                  : 'Te enviaremos un enlace seguro a tu correo para activar tu cuenta y elegir una contraseña.'}
+              </p>
+            </>
           )}
 
           {mode === 'forgot' && (

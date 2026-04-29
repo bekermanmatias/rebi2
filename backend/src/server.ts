@@ -4,6 +4,7 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { sendInvitationEmail, isEmailConfigured } from './email.js';
+import { isWhatsAppConfigured, sendRegistrationWhatsApp } from './whatsapp.js';
 
 const PORT = Number(process.env.PORT || 4000);
 
@@ -17,6 +18,20 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? '')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:4321').replace(/\/$/, '');
+
+function frontendBaseFromRequest(req: Request): string {
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+  if (!origin) return frontendUrl;
+  try {
+    const u = new URL(origin);
+    if (u.protocol === 'http:' || u.protocol === 'https:') {
+      return `${u.protocol}//${u.host}`;
+    }
+  } catch {
+    // fallback a FRONTEND_URL
+  }
+  return frontendUrl;
+}
 
 const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
@@ -250,6 +265,11 @@ function sanitizeFilename(name: string): string {
     .replace(/-+/g, '-')
     .replace(/(^-|-$)/g, '')
     .slice(0, 80) || 'image';
+}
+
+function generatedEmailFromWhatsApp(raw: string): string {
+  const digits = raw.replace(/\D+/g, '');
+  return `wa-${digits || Date.now()}@rebi.local`;
 }
 
 app.get('/categories', asyncHandler(async (_req, res) => {
@@ -957,7 +977,7 @@ app.post('/auth/register/start', asyncHandler(async (req, res) => {
     }
   }
 
-  const redirectTo = `${frontendUrl}/registro/completar`;
+  const redirectTo = `${frontendBaseFromRequest(req)}/registro/completar`;
   const linkType = existing ? 'magiclink' : 'invite';
 
   const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -1022,6 +1042,75 @@ app.post('/auth/register/start', asyncHandler(async (req, res) => {
     message: isEmailConfigured()
       ? 'Te enviamos un correo con un enlace para activar tu cuenta.'
       : 'SMTP no configurado: revisá los logs del backend para obtener el enlace de activación.',
+  });
+}));
+
+app.post('/auth/register/start-whatsapp', asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Supabase admin no está configurado (falta SUPABASE_SERVICE_ROLE_KEY)' });
+    return;
+  }
+
+  const bodySchema = z.object({
+    email: z.string().email().max(254).optional(),
+    whatsapp: z.string().min(7).max(30),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'WhatsApp inválido (y si enviás email, debe ser válido)' });
+    return;
+  }
+  const email = parsed.data.email?.trim().toLowerCase() || generatedEmailFromWhatsApp(parsed.data.whatsapp);
+  const whatsapp = parsed.data.whatsapp.trim();
+
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    const hasPassword = Boolean(
+      (existing as unknown as { encrypted_password?: string }).encrypted_password
+    );
+    const confirmed = Boolean(existing.email_confirmed_at) && hasPassword;
+    if (confirmed) {
+      res.status(409).json({
+        error: 'Ya existe una cuenta con ese correo. Iniciá sesión o restablecé tu contraseña.',
+        code: 'user_exists',
+      });
+      return;
+    }
+  }
+
+  const redirectTo = `${frontendBaseFromRequest(req)}/registro/completar`;
+  const linkType = existing ? 'magiclink' : 'invite';
+  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    type: linkType as 'invite',
+    email,
+    options: { redirectTo },
+  });
+  if (linkError || !linkData) {
+    console.error('Error generating whatsapp registration link', linkError);
+    res.status(500).json({ error: 'No se pudo generar el enlace de registro' });
+    return;
+  }
+  const actionLink = (linkData.properties as { action_link?: string } | null)?.action_link;
+  if (!actionLink) {
+    res.status(500).json({ error: 'Respuesta de Supabase sin enlace de acción' });
+    return;
+  }
+  const activationLinkForWhatsApp = `${frontendBaseFromRequest(req)}/registro/completar?activate=${encodeURIComponent(actionLink)}`;
+
+  try {
+    await sendRegistrationWhatsApp({ to: whatsapp, email, actionLink: activationLinkForWhatsApp });
+  } catch (err) {
+    console.error('Error sending whatsapp registration message', err);
+    res.status(500).json({ error: 'No se pudo enviar el WhatsApp de activación. Revisá la configuración de Twilio.' });
+    return;
+  }
+
+  res.json({
+    ok: true,
+    whatsappDelivered: isWhatsAppConfigured(),
+    message: isWhatsAppConfigured()
+      ? 'Te enviamos un WhatsApp con el enlace para activar tu cuenta.'
+      : 'Twilio WhatsApp no configurado: revisá los logs del backend para obtener el enlace de activación.',
   });
 }));
 

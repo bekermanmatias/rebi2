@@ -72,6 +72,7 @@ function readHashError(): string | null {
 
 export default function CompleteRegistration() {
   const [state, setState] = useState<State>({ status: 'loading' });
+  const [activateLink, setActivateLink] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -81,6 +82,16 @@ export default function CompleteRegistration() {
   useEffect(() => {
     if (!supabaseAuthClient) {
       setState({ status: 'invalid', reason: 'La autenticación no está configurada.' });
+      return;
+    }
+
+    const searchParams = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : null;
+    const activate = searchParams?.get('activate');
+    if (activate) {
+      setActivateLink(activate);
+      setState({ status: 'invalid', reason: '' });
       return;
     }
 
@@ -200,6 +211,26 @@ export default function CompleteRegistration() {
   }
 
   if (state.status === 'invalid') {
+    if (activateLink) {
+      return (
+        <div className="mx-auto w-full max-w-sm">
+          <div className="rounded-2xl bg-white p-7 text-center shadow-sm ring-1 ring-gray-100 sm:p-8">
+            <h1 className="text-xl font-bold text-gray-900">Continuar activación</h1>
+            <p className="mt-2 text-sm text-gray-500">
+              Para evitar que el enlace se consuma por previsualizaciones automáticas,
+              confirmá manualmente el inicio de activación.
+            </p>
+            <button
+              type="button"
+              onClick={() => { window.location.href = activateLink; }}
+              className="mt-5 inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              Activar mi cuenta
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="mx-auto w-full max-w-sm">
         <div className="rounded-2xl bg-white p-7 text-center shadow-sm ring-1 ring-gray-100 sm:p-8">
