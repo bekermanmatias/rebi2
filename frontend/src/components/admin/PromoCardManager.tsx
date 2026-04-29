@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchPromoCards, savePromoCard, deletePromoCard, type PromoCardRow } from '../../lib/adminApi';
+import { fetchPromoCards, savePromoCard, deletePromoCard, uploadAdminImage, type PromoCardRow } from '../../lib/adminApi';
 
 const emptyCard: PromoCardRow = {
   title: '',
@@ -15,6 +15,7 @@ export default function PromoCardManager() {
   const [editing, setEditing] = useState<PromoCardRow | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -91,13 +92,38 @@ export default function PromoCardManager() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">URL de imagen *</label>
-                <input
-                  type="text"
-                  value={editing.image_url}
-                  onChange={(e) => setEditing({ ...editing, image_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editing.image_url}
+                    onChange={(e) => setEditing({ ...editing, image_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                  <label className="inline-flex cursor-pointer items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    {uploadingImage ? 'Subiendo...' : 'Subir'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingImage}
+                      onChange={async (e) => {
+                        const input = e.currentTarget;
+                        const file = input.files?.[0];
+                        if (!file) return;
+                        setUploadingImage(true);
+                        const result = await uploadAdminImage(file, 'promo-cards', editing.image_url || undefined);
+                        setUploadingImage(false);
+                        if (!result.publicUrl) {
+                          setError(result.error || 'No se pudo subir la imagen');
+                        } else {
+                          setEditing((prev) => (prev ? { ...prev, image_url: result.publicUrl! } : prev));
+                        }
+                        input.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
                 {editing.image_url && (
                   <img src={editing.image_url} alt="" className="mt-2 h-24 w-full rounded border object-cover" />
                 )}

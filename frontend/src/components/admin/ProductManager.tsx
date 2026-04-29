@@ -11,6 +11,7 @@ import {
   deleteVariant,
   saveImages,
   deleteImage,
+  uploadAdminImage,
   type ProductRow,
   type VariantRow,
   type ImageRow,
@@ -576,6 +577,7 @@ function ImageEditor({
   productId: string;
 }) {
   const [newUrl, setNewUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   function addImage() {
     if (!newUrl.trim()) return;
@@ -589,6 +591,25 @@ function ImageEditor({
       },
     ]);
     setNewUrl('');
+  }
+
+  async function addImageFromFile(file: File) {
+    setUploading(true);
+    const result = await uploadAdminImage(file, 'products');
+    setUploading(false);
+    if (!result.publicUrl) {
+      alert(result.error || 'No se pudo subir la imagen');
+      return;
+    }
+    setImages((prev) => [
+      ...prev,
+      {
+        image_url: result.publicUrl,
+        is_primary: prev.length === 0,
+        display_order: prev.length,
+        variant_id: null,
+      },
+    ]);
   }
 
   function updateImage(index: number, field: keyof ImageRow, value: string | boolean | number | null) {
@@ -633,6 +654,22 @@ function ImageEditor({
           </svg>
           Agregar
         </button>
+        <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          {uploading ? 'Subiendo...' : 'Subir desde PC'}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={uploading}
+            onChange={async (e) => {
+              const input = e.currentTarget;
+              const file = input.files?.[0];
+              if (!file) return;
+              await addImageFromFile(file);
+              input.value = '';
+            }}
+          />
+        </label>
       </div>
 
       {images.length === 0 ? (
@@ -684,6 +721,30 @@ function ImageEditor({
                       ))}
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    Reemplazar archivo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const input = e.currentTarget;
+                        const file = input.files?.[0];
+                        if (!file) return;
+                        setUploading(true);
+                        const result = await uploadAdminImage(file, 'products', img.image_url);
+                        setUploading(false);
+                        if (!result.publicUrl) {
+                          alert(result.error || 'No se pudo reemplazar la imagen');
+                        } else {
+                          updateImage(i, 'image_url', result.publicUrl);
+                        }
+                        input.value = '';
+                      }}
+                    />
+                  </label>
                 </div>
               </div>
               <button onClick={() => removeImage(i)} className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-red-600">

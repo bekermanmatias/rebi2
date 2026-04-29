@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchBanners, saveBanner, deleteBanner, type BannerRow } from '../../lib/adminApi';
+import { fetchBanners, saveBanner, deleteBanner, uploadAdminImage, type BannerRow } from '../../lib/adminApi';
 
 const emptyBanner: BannerRow = {
   title: '',
@@ -16,6 +16,8 @@ export default function BannerManager() {
   const [editing, setEditing] = useState<BannerRow | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingDesktop, setUploadingDesktop] = useState(false);
+  const [uploadingMobile, setUploadingMobile] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -87,26 +89,76 @@ export default function BannerManager() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Imagen Desktop (1920×400)</label>
-                <input
-                  type="text"
-                  value={editing.desktop_image_url ?? ''}
-                  onChange={(e) => setEditing({ ...editing, desktop_image_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editing.desktop_image_url ?? ''}
+                    onChange={(e) => setEditing({ ...editing, desktop_image_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                  <label className="inline-flex cursor-pointer items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    {uploadingDesktop ? 'Subiendo...' : 'Subir'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingDesktop}
+                      onChange={async (e) => {
+                        const input = e.currentTarget;
+                        const file = input.files?.[0];
+                        if (!file) return;
+                        setUploadingDesktop(true);
+                        const result = await uploadAdminImage(file, 'banners', editing.desktop_image_url || undefined);
+                        setUploadingDesktop(false);
+                        if (!result.publicUrl) {
+                          setError(result.error || 'No se pudo subir la imagen desktop');
+                        } else {
+                          setEditing((prev) => (prev ? { ...prev, desktop_image_url: result.publicUrl! } : prev));
+                        }
+                        input.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
                 {editing.desktop_image_url && (
                   <img src={editing.desktop_image_url} alt="" className="mt-2 h-24 w-full rounded border object-cover" />
                 )}
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Imagen Mobile (1080×1080)</label>
-                <input
-                  type="text"
-                  value={editing.mobile_image_url ?? ''}
-                  onChange={(e) => setEditing({ ...editing, mobile_image_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editing.mobile_image_url ?? ''}
+                    onChange={(e) => setEditing({ ...editing, mobile_image_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                  <label className="inline-flex cursor-pointer items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    {uploadingMobile ? 'Subiendo...' : 'Subir'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingMobile}
+                      onChange={async (e) => {
+                        const input = e.currentTarget;
+                        const file = input.files?.[0];
+                        if (!file) return;
+                        setUploadingMobile(true);
+                        const result = await uploadAdminImage(file, 'banners', editing.mobile_image_url || undefined);
+                        setUploadingMobile(false);
+                        if (!result.publicUrl) {
+                          setError(result.error || 'No se pudo subir la imagen mobile');
+                        } else {
+                          setEditing((prev) => (prev ? { ...prev, mobile_image_url: result.publicUrl! } : prev));
+                        }
+                        input.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

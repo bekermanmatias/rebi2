@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import AdminGuard from '../components/admin/AdminGuard';
 
 interface Props {
   title?: string;
@@ -30,6 +31,7 @@ const currentPath = Astro.url.pathname;
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-gray-100 font-sans antialiased">
+    <AdminGuard client:load />
     <div class="flex min-h-screen">
       <!-- Sidebar -->
       <aside class="fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-gray-900">

@@ -1,9 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Category, Brand } from '../types';
+import { supabaseAuthClient } from './authClient';
 
 let _client: SupabaseClient | null = null;
+const ADMIN_PIN_KEY = 'rebi.admin.pin';
 
 function getClient(): SupabaseClient | null {
+  if (supabaseAuthClient) return supabaseAuthClient as unknown as SupabaseClient;
   if (_client) return _client;
   const url = import.meta.env.PUBLIC_SUPABASE_URL ?? '';
   const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -325,4 +328,60 @@ export async function deletePromoCard(id: string): Promise<boolean> {
   const { error } = await sb.from('promo_cards').delete().eq('id', id);
   if (error) { console.error('deletePromoCard:', error); return false; }
   return true;
+}
+
+async function getAccessToken(): Promise<string | null> {
+  if (!supabaseAuthClient) return null;
+  const { data } = await supabaseAuthClient.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+export function setAdminPin(pin: string) {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(ADMIN_PIN_KEY, pin);
+}
+
+export function getAdminPin(): string {
+  if (typeof window === 'undefined') return '';
+  return sessionStorage.getItem(ADMIN_PIN_KEY) ?? '';
+}
+
+export async function uploadAdminImage(
+  file: File,
+  section: 'products' | 'banners' | 'promo-cards',
+  replaceUrl?: string | null
+): Promise<{ publicUrl: string | null; error?: string }> {
+  const token = await getAccessToken();
+  const ab = await file.arrayBuffer();
+  const bytes = new Uint8Array(ab);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const base64 = btoa(binary);
+
+  const apiBase = import.meta.env.PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
+  const res = await fetch(`${apiBase}/admin/upload-image`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'x-admin-pin': getAdminPin(),
+    },
+    body: JSON.stringify({
+      section,
+      filename: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      base64,
+      replaceUrl: replaceUrl || undefined,
+    }),
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (typeof body?.error === 'string') msg = body.error;
+    } catch {}
+    return { publicUrl: null, error: msg };
+  }
+  const data = await res.json();
+  return { publicUrl: typeof data?.publicUrl === 'string' ? data.publicUrl : null };
 }
