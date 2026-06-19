@@ -7,7 +7,7 @@ import {
   getBanners as getBannersFromSupabase,
   getPromoCards as getPromoCardsFromSupabase,
 } from './supabase';
-import type { Product, Category, Brand, Banner, PromoCard } from '../types';
+import type { Product, Category, Brand, Banner, PromoCard, HomeFeatureSection, HomeReview } from '../types';
 import { apiGet } from './apiClient';
 
 function shouldUseBackend(): boolean {
@@ -70,4 +70,22 @@ export async function getPromoCards(): Promise<PromoCard[]> {
   if (shouldUseBackend()) return apiGet<PromoCard[]>('/promo-cards');
   if (supabase) return getPromoCardsFromSupabase();
   return [];
+}
+
+export async function getHomeFeatureSection(slug: string): Promise<HomeFeatureSection | null> {
+  if (!shouldUseBackend()) return null;
+  try {
+    return await apiGet<HomeFeatureSection>(`/home-sections/${encodeURIComponent(slug)}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function getHomeReviews(): Promise<HomeReview[]> {
+  if (!shouldUseBackend()) return [];
+  try {
+    return await apiGet<HomeReview[]>('/home-reviews');
+  } catch {
+    return [];
+  }
 }

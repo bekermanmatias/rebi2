@@ -351,7 +351,7 @@ function BrandStrip({ brands, onSelectBrand }: { brands: Brand[]; onSelectBrand:
   if (brands.length === 0) return null;
 
   return (
-    <div className="relative mb-3 -mt-8 mr-auto max-w-[1045px]">
+    <div className="relative mb-3 mt-2 mr-auto max-w-[1045px]">
       <button
         type="button"
         onClick={() => scroll('left')}

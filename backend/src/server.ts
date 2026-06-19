@@ -1,53 +1,111 @@
 import 'dotenv/config';
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { sendInvitationEmail, isEmailConfigured } from './email.js';
+import { isWhatsAppConfigured, sendRegistrationWhatsApp } from './whatsapp.js';
 
 const PORT = Number(process.env.PORT || 4000);
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_KEY || process.env.PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const storageBucket = process.env.SUPABASE_STORAGE_BUCKET || 'public';
+const adminPanelPin = process.env.ADMIN_PANEL_PIN || '';
 const adminEmails = (process.env.ADMIN_EMAILS ?? '')
   .split(',')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
+const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:4321').replace(/\/$/, '');
 
-const fastify = Fastify({
-  logger: true,
-});
-
-fastify.register(cors, {
-  origin: '*',
-});
-
-// Cache simple para GET públicos (mejora TTFB y reduce carga a Supabase)
-fastify.addHook('onSend', async (request, reply, payload) => {
-  if (request.method !== 'GET') return payload;
-  // 60s para listados, 300s para detalle
-  const maxAge = request.url.startsWith('/products/') ? 300 : 60;
-  reply.header('Cache-Control', `public, max-age=${maxAge}, s-maxage=${maxAge}`);
-  return payload;
-});
+function frontendBaseFromRequest(req: Request): string {
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+  if (!origin) return frontendUrl;
+  try {
+    const u = new URL(origin);
+    if (u.protocol === 'http:' || u.protocol === 'https:') {
+      return `${u.protocol}//${u.host}`;
+    }
+  } catch {
+    // fallback a FRONTEND_URL
+  }
+  return frontendUrl;
+}
 
 const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
+  : null;
+const supabaseStorage = supabaseUrl && (supabaseServiceRoleKey || supabaseKey)
+  ? createClient(supabaseUrl, supabaseServiceRoleKey || supabaseKey)
+  : null;
+const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    })
   : null;
 
 type AuthUser = {
   id: string;
   email?: string;
 };
+type HomeFeatureSectionRow = {
+  slug: string;
+  title: string | null;
+  image_url: string | null;
+  target_link: string | null;
+  tile_images: string[] | null;
+  is_active: boolean | null;
+};
+type HomeReviewRow = {
+  id: string;
+  author_name: string | null;
+  review_text: string | null;
+  avatar_url: string | null;
+  attachment_url: string | null;
+  stars: number | null;
+  display_order: number | null;
+  is_active: boolean | null;
+};
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: AuthUser;
-    userToken?: string;
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      user?: AuthUser;
+      userToken?: string;
+    }
   }
 }
 
-fastify.get('/health', async () => {
-  return { status: 'ok' };
+const app = express();
+
+app.use(cors({ origin: '*' }));
+app.use(express.json({ limit: '12mb' }));
+
+app.use((req, res, next) => {
+  if (req.method === 'GET') {
+    const isPrivate = req.path.startsWith('/me') || req.path.startsWith('/admin');
+    if (isPrivate) {
+      res.setHeader('Cache-Control', 'private, no-store');
+    } else {
+      const maxAge = req.path.startsWith('/products/') ? 300 : 60;
+      res.setHeader('Cache-Control', `public, max-age=${maxAge}, s-maxage=${maxAge}`);
+    }
+  }
+  next();
+});
+
+function asyncHandler(
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>,
+) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    fn(req, res, next).catch(next);
+  };
+}
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
 const PRODUCT_SELECT = `
@@ -72,57 +130,90 @@ function normalizeProduct(row: any) {
     product_images: sortedImages,
     variants: rawVariants,
     image_url: primaryImage?.image_url ?? null,
-    images: sortedImages.map((img) => img?.image_url).filter(Boolean),
+    images: sortedImages.map((img: any) => img?.image_url).filter(Boolean),
     is_featured: row?.is_featured === true,
   };
 }
 
-// ─── Auth middleware (valida JWT de Supabase) ────────────────────────
-async function authenticate(request: any, reply: any) {
+// ─── Auth middlewares (valida JWT de Supabase) ────────────────────────
+const authenticate = asyncHandler(async (req, res, next) => {
   if (!supabase) {
-    reply.code(500);
-    throw new Error('Supabase not configured');
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
 
-  const authHeader = request.headers['authorization'] as string | undefined;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const authHeader = req.headers['authorization'];
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : undefined;
 
   if (!token) {
-    reply.code(401);
-    throw new Error('Missing Authorization header');
+    res.status(401).json({ error: 'Missing Authorization header' });
+    return;
   }
 
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
-    reply.code(401);
-    throw new Error('Invalid token');
+    res.status(401).json({ error: 'Invalid token' });
+    return;
   }
 
-  request.userToken = token;
-  request.user = {
+  req.userToken = token;
+  req.user = {
     id: data.user.id,
     email: data.user.email ?? undefined,
   };
-}
+  next();
+});
 
-async function requireAdmin(request: any, reply: any) {
-  await authenticate(request, reply);
-  const email = request.user?.email?.toLowerCase();
+const requireAdmin = asyncHandler(async (req, res, next) => {
+  await new Promise<void>((resolve, reject) => {
+    authenticate(req, res, (err?: unknown) => (err ? reject(err) : resolve()));
+  });
+  if (res.headersSent) return;
+
+  const email = req.user?.email?.toLowerCase();
   if (!email || adminEmails.length === 0 || !adminEmails.includes(email)) {
-    reply.code(403);
-    throw new Error('Forbidden');
+    res.status(403).json({ error: 'Forbidden' });
+    return;
   }
+  next();
+});
+
+const requireAdminPin = (req: Request, res: Response, next: NextFunction) => {
+  if (!adminPanelPin) {
+    next();
+    return;
+  }
+  const pin = req.headers['x-admin-pin'];
+  if (typeof pin !== 'string' || pin !== adminPanelPin) {
+    res.status(403).json({ error: 'Invalid admin PIN' });
+    return;
+  }
+  next();
+};
+
+function userSupabase(req: Request) {
+  if (!supabaseUrl || !supabaseKey || !req.userToken) return null;
+  return createClient(supabaseUrl, supabaseKey, {
+    global: {
+      headers: { Authorization: `Bearer ${req.userToken}` },
+    },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
-async function maybeAuthenticate(request: any) {
+async function maybeAuthenticate(req: Request) {
   if (!supabase) return;
-  const authHeader = request.headers['authorization'] as string | undefined;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const authHeader = req.headers['authorization'];
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : undefined;
   if (!token) return;
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) return;
-  request.userToken = token;
-  request.user = {
+  req.userToken = token;
+  req.user = {
     id: data.user.id,
     email: data.user.email ?? undefined,
   };
@@ -147,38 +238,72 @@ function buildOrderWhatsAppMessage(order: any) {
   return encodeURIComponent(parts.join('\n'));
 }
 
-fastify.get('/categories', async (request, reply) => {
+function isMissingOrdersTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { code?: unknown }).code;
+  const message = (error as { message?: unknown }).message;
+  return code === 'PGRST205' && typeof message === 'string' && message.includes("table 'public.orders'");
+}
+
+function storagePathFromPublicUrl(url: string): string | null {
+  if (!url || !supabaseUrl) return null;
+  try {
+    const u = new URL(url);
+    const marker = `/storage/v1/object/public/${storageBucket}/`;
+    const idx = u.pathname.indexOf(marker);
+    if (idx < 0) return null;
+    return decodeURIComponent(u.pathname.slice(idx + marker.length));
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeFilename(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 80) || 'image';
+}
+
+function generatedEmailFromWhatsApp(raw: string): string {
+  const digits = raw.replace(/\D+/g, '');
+  return `wa-${digits || Date.now()}@rebi.local`;
+}
+
+app.get('/categories', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase.from('categories').select('*').order('name');
   if (error) {
-    request.log.error({ error }, 'Error fetching categories');
-    reply.code(500);
-    return { error: 'Error fetching categories' };
+    console.error('Error fetching categories', error);
+    res.status(500).json({ error: 'Error fetching categories' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/brands', async (request, reply) => {
+app.get('/brands', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase.from('brands').select('*').order('name');
   if (error) {
-    request.log.error({ error }, 'Error fetching brands');
-    reply.code(500);
-    return { error: 'Error fetching brands' };
+    console.error('Error fetching brands', error);
+    res.status(500).json({ error: 'Error fetching brands' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/banners', async (request, reply) => {
+app.get('/banners', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase
     .from('home_banners')
@@ -186,17 +311,17 @@ fastify.get('/banners', async (request, reply) => {
     .eq('is_active', true)
     .order('display_order');
   if (error) {
-    request.log.error({ error }, 'Error fetching banners');
-    reply.code(500);
-    return { error: 'Error fetching banners' };
+    console.error('Error fetching banners', error);
+    res.status(500).json({ error: 'Error fetching banners' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/promo-cards', async (request, reply) => {
+app.get('/promo-cards', asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase
     .from('promo_cards')
@@ -204,17 +329,84 @@ fastify.get('/promo-cards', async (request, reply) => {
     .eq('is_active', true)
     .order('display_order');
   if (error) {
-    request.log.error({ error }, 'Error fetching promo cards');
-    reply.code(500);
-    return { error: 'Error fetching promo cards' };
+    console.error('Error fetching promo cards', error);
+    res.status(500).json({ error: 'Error fetching promo cards' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
-fastify.get('/products', async (request, reply) => {
+app.get('/home-sections/:slug', asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const paramsSchema = z.object({ slug: z.string().min(1) });
+  const parsed = paramsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('home_feature_sections')
+    .select('slug, title, image_url, target_link, tile_images, is_active')
+    .eq('slug', parsed.data.slug)
+    .maybeSingle();
+  if (error) {
+    console.error('Error fetching home section', error);
+    res.status(500).json({ error: 'Error fetching home section' });
+    return;
+  }
+  if (!data || data.is_active === false) {
+    res.status(404).json({ error: 'Section not found' });
+    return;
+  }
+  const row = data as HomeFeatureSectionRow;
+  res.json({
+    slug: row.slug,
+    title: row.title ?? '',
+    image_url: row.image_url ?? null,
+    target_link: row.target_link ?? null,
+    tile_images: Array.isArray(row.tile_images) ? row.tile_images : [],
+    is_active: row.is_active !== false,
+  });
+}));
+
+app.get('/home-reviews', asyncHandler(async (_req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('home_reviews')
+    .select('id, author_name, review_text, avatar_url, attachment_url, stars, display_order, is_active')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true })
+    .limit(30);
+  if (error) {
+    console.error('Error fetching home reviews', error);
+    res.status(500).json({ error: 'Error fetching home reviews' });
+    return;
+  }
+  res.json(
+    (data ?? []).map((row: HomeReviewRow) => ({
+      id: row.id,
+      author_name: row.author_name ?? 'Cliente REBI',
+      review_text: row.review_text ?? '',
+      avatar_url: row.avatar_url ?? null,
+      attachment_url: row.attachment_url ?? null,
+      stars: Number(row.stars ?? 5),
+      display_order: Number(row.display_order ?? 0),
+      is_active: row.is_active !== false,
+    }))
+  );
+}));
+
+app.get('/products', asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
 
   const querySchema = z.object({
@@ -224,10 +416,10 @@ fastify.get('/products', async (request, reply) => {
     brand: z.string().optional(),
     search: z.string().optional(),
   });
-  const parsed = querySchema.safeParse(request.query);
+  const parsed = querySchema.safeParse(req.query);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid query params' };
+    res.status(400).json({ error: 'Invalid query params' });
+    return;
   }
   const q = parsed.data;
 
@@ -249,7 +441,6 @@ fastify.get('/products', async (request, reply) => {
     sbQuery = sbQuery.or(`name.ilike.%${s}%,description.ilike.%${s}%`);
   }
 
-  // Note: para category/brand por slug, resolvemos id (2 queries máximo).
   if (q.category) {
     const { data: cat } = await supabase.from('categories').select('id').eq('slug', q.category).single();
     if (cat?.id) sbQuery = sbQuery.eq('category_id', cat.id);
@@ -263,27 +454,27 @@ fastify.get('/products', async (request, reply) => {
 
   const { data, error } = await sbQuery;
   if (error) {
-    request.log.error({ error }, 'Error fetching products');
-    reply.code(500);
-    return { error: 'Error fetching products' };
+    console.error('Error fetching products', error);
+    res.status(500).json({ error: 'Error fetching products' });
+    return;
   }
 
   const products = (data ?? [])
     .map((p: any) => normalizeProduct(p))
     .filter((p: any) => p?.image_url);
-  return products;
-});
+  res.json(products);
+}));
 
-fastify.get('/products/:slug', async (request, reply) => {
+app.get('/products/:slug', asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const paramsSchema = z.object({ slug: z.string().min(1) });
-  const parsed = paramsSchema.safeParse(request.params);
+  const parsed = paramsSchema.safeParse(req.params);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid slug' };
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
   }
 
   const { data, error } = await supabase
@@ -293,19 +484,19 @@ fastify.get('/products/:slug', async (request, reply) => {
     .single();
 
   if (error || !data) {
-    reply.code(404);
-    return { error: 'Not found' };
+    res.status(404).json({ error: 'Not found' });
+    return;
   }
-  return normalizeProduct(data);
-});
+  res.json(normalizeProduct(data));
+}));
 
 // Crear orden (checkout) - permite guest (sin auth) pero si hay JWT lo asocia al usuario
-fastify.post('/orders', async (request, reply) => {
+app.post('/orders', asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
-  await maybeAuthenticate(request);
+  await maybeAuthenticate(req);
 
   const bodySchema = z.object({
     items: z.array(z.object({
@@ -322,10 +513,10 @@ fastify.post('/orders', async (request, reply) => {
     whatsappNumber: z.string().optional(),
   });
 
-  const parsed = bodySchema.safeParse(request.body);
+  const parsed = bodySchema.safeParse(req.body);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid payload' };
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
   }
 
   const { items, delivery, vendedorCode, whatsappNumber } = parsed.data;
@@ -335,8 +526,8 @@ fastify.post('/orders', async (request, reply) => {
   const { data, error } = await supabase
     .from('orders')
     .insert({
-      user_id: request.user?.id ?? null,
-      customer_email: request.user?.email ?? null,
+      user_id: req.user?.id ?? null,
+      customer_email: req.user?.email ?? null,
       status: 'pending',
       delivery_type: delivery.type,
       delivery_address: delivery.address ?? null,
@@ -349,23 +540,23 @@ fastify.post('/orders', async (request, reply) => {
     .single();
 
   if (error || !data) {
-    request.log.error({ error }, 'Error creating order');
-    reply.code(500);
-    return { error: 'Error creating order' };
+    console.error('Error creating order', error);
+    res.status(500).json({ error: 'Error creating order' });
+    return;
   }
 
-  return {
+  res.json({
     id: data.id,
     status: data.status,
     created_at: data.created_at,
-  };
-});
+  });
+}));
 
 // Admin: listar órdenes
-fastify.get('/admin/orders', { preHandler: requireAdmin }, async (request, reply) => {
+app.get('/admin/orders', requireAdmin, asyncHandler(async (_req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const { data, error } = await supabase
     .from('orders')
@@ -373,24 +564,24 @@ fastify.get('/admin/orders', { preHandler: requireAdmin }, async (request, reply
     .order('created_at', { ascending: false })
     .limit(200);
   if (error) {
-    request.log.error({ error }, 'Error fetching orders');
-    reply.code(500);
-    return { error: 'Error fetching orders' };
+    console.error('Error fetching orders', error);
+    res.status(500).json({ error: 'Error fetching orders' });
+    return;
   }
-  return data ?? [];
-});
+  res.json(data ?? []);
+}));
 
 // Admin: aceptar orden + devolver link de WhatsApp listo
-fastify.post('/admin/orders/:id/accept', { preHandler: requireAdmin }, async (request, reply) => {
+app.post('/admin/orders/:id/accept', requireAdmin, asyncHandler(async (req, res) => {
   if (!supabase) {
-    reply.code(500);
-    return { error: 'Supabase not configured' };
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
   const paramsSchema = z.object({ id: z.string().uuid() });
-  const parsed = paramsSchema.safeParse(request.params);
+  const parsed = paramsSchema.safeParse(req.params);
   if (!parsed.success) {
-    reply.code(400);
-    return { error: 'Invalid order id' };
+    res.status(400).json({ error: 'Invalid order id' });
+    return;
   }
 
   const { data, error } = await supabase
@@ -401,38 +592,534 @@ fastify.post('/admin/orders/:id/accept', { preHandler: requireAdmin }, async (re
     .single();
 
   if (error || !data) {
-    request.log.error({ error }, 'Error accepting order');
-    reply.code(500);
-    return { error: 'Error accepting order' };
+    console.error('Error accepting order', error);
+    res.status(500).json({ error: 'Error accepting order' });
+    return;
   }
 
   const message = buildOrderWhatsAppMessage(data);
   const phone = (data.whatsapp_number as string) || '';
   const whatsappUrl = phone ? `https://wa.me/${phone}?text=${message}` : null;
-  return { order: data, whatsappUrl };
-});
+  res.json({ order: data, whatsappUrl });
+}));
+
+app.get('/admin/home-sections/:slug', requireAdminPin, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const paramsSchema = z.object({ slug: z.string().min(1) });
+  const parsed = paramsSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('home_feature_sections')
+    .select('slug, title, image_url, target_link, tile_images, is_active')
+    .eq('slug', parsed.data.slug)
+    .maybeSingle();
+  if (error) {
+    console.error('Error fetching admin home section', error);
+    res.status(500).json({ error: 'Error fetching admin home section' });
+    return;
+  }
+  if (!data) {
+    res.json({
+      slug: parsed.data.slug,
+      title: '',
+      image_url: null,
+      target_link: null,
+      tile_images: [],
+      is_active: true,
+    });
+    return;
+  }
+  res.json(data);
+}));
+
+app.put('/admin/home-sections/:slug', requireAdminPin, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const paramsSchema = z.object({ slug: z.string().min(1) });
+  const parsedParams = paramsSchema.safeParse(req.params);
+  if (!parsedParams.success) {
+    res.status(400).json({ error: 'Invalid slug' });
+    return;
+  }
+  const bodySchema = z.object({
+    title: z.string().optional().default(''),
+    image_url: z.string().url().nullable().optional(),
+    target_link: z.string().nullable().optional(),
+    tile_images: z.array(z.string().url()).max(4).optional().default([]),
+    is_active: z.boolean().optional().default(true),
+  });
+  const parsedBody = bodySchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+  const payload = parsedBody.data;
+  const { error } = await supabase
+    .from('home_feature_sections')
+    .upsert({
+      slug: parsedParams.data.slug,
+      title: payload.title,
+      image_url: payload.image_url ?? null,
+      target_link: payload.target_link ?? null,
+      tile_images: payload.tile_images,
+      is_active: payload.is_active,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'slug' });
+  if (error) {
+    console.error('Error saving admin home section', error);
+    res.status(500).json({ error: 'Error saving admin home section' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+app.get('/admin/home-reviews', requireAdminPin, asyncHandler(async (_req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const { data, error } = await supabase
+    .from('home_reviews')
+    .select('id, author_name, review_text, avatar_url, attachment_url, stars, display_order, is_active')
+    .order('display_order', { ascending: true })
+    .limit(50);
+  if (error) {
+    console.error('Error fetching admin home reviews', error);
+    res.status(500).json({ error: 'Error fetching admin home reviews' });
+    return;
+  }
+  res.json(data ?? []);
+}));
+
+app.put('/admin/home-reviews', requireAdminPin, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  const bodySchema = z.object({
+    reviews: z.array(z.object({
+      author_name: z.string().min(1).max(80),
+      review_text: z.string().min(1).max(500),
+      avatar_url: z.string().url().nullable().optional(),
+      attachment_url: z.string().url().nullable().optional(),
+      stars: z.number().int().min(1).max(5),
+      display_order: z.number().int().min(0).max(200),
+      is_active: z.boolean(),
+    })).min(1).max(20),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+
+  const { error: deleteError } = await supabase
+    .from('home_reviews')
+    .delete()
+    .neq('id', '00000000-0000-0000-0000-000000000000');
+  if (deleteError) {
+    console.error('Error replacing home reviews (delete)', deleteError);
+    res.status(500).json({ error: 'Error saving home reviews' });
+    return;
+  }
+
+  const { error: insertError } = await supabase
+    .from('home_reviews')
+    .insert(parsed.data.reviews.map((r) => ({
+      author_name: r.author_name,
+      review_text: r.review_text,
+      avatar_url: r.avatar_url ?? null,
+      attachment_url: r.attachment_url ?? null,
+      stars: r.stars,
+      display_order: r.display_order,
+      is_active: r.is_active,
+    })));
+  if (insertError) {
+    console.error('Error replacing home reviews (insert)', insertError);
+    res.status(500).json({ error: 'Error saving home reviews' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+// Admin: validar PIN del panel
+app.post('/admin/verify-pin', requireAdminPin, asyncHandler(async (_req, res) => {
+  if (!adminPanelPin) {
+    res.json({ ok: true });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+// Admin: subir/reemplazar imágenes en Supabase Storage
+app.post('/admin/upload-image', requireAdminPin, asyncHandler(async (req, res) => {
+  if (!supabaseStorage || !supabaseUrl) {
+    res.status(500).json({ error: 'Supabase storage not configured' });
+    return;
+  }
+
+  const bodySchema = z.object({
+    section: z.enum(['products', 'banners', 'promo-cards', 'home-sections']),
+    filename: z.string().min(1),
+    mimeType: z.string().min(1),
+    base64: z.string().min(1),
+    replaceUrl: z.string().url().optional(),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+
+  const { section, filename, mimeType, base64, replaceUrl } = parsed.data;
+  const safeName = sanitizeFilename(filename);
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`;
+  const path = `${section}/${uniqueName}`;
+
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(base64, 'base64');
+  } catch {
+    res.status(400).json({ error: 'Invalid base64 data' });
+    return;
+  }
+
+  const { error: uploadError } = await supabaseStorage.storage
+    .from(storageBucket)
+    .upload(path, buffer, { contentType: mimeType, upsert: false });
+  if (uploadError) {
+    console.error('Error uploading image', uploadError);
+    const raw = uploadError.message ?? '';
+    let detail = raw;
+    if (/bucket not found/i.test(raw)) {
+      detail =
+        `Bucket de Storage "${storageBucket}" no existe. En Supabase: Storage → New bucket (mismo nombre que ` +
+        `SUPABASE_STORAGE_BUCKET en backend/.env), o cambiá esa variable al nombre de un bucket que ya tengas. ` +
+        `Para URLs públicas, activá "Public bucket".`;
+    }
+    res.status(500).json({ error: `Error uploading image: ${detail}` });
+    return;
+  }
+
+  if (replaceUrl) {
+    const oldPath = storagePathFromPublicUrl(replaceUrl);
+    if (oldPath && oldPath !== path) {
+      await supabaseStorage.storage.from(storageBucket).remove([oldPath]);
+    }
+  }
+
+  const { data } = supabaseStorage.storage.from(storageBucket).getPublicUrl(path);
+  res.json({ path, publicUrl: data.publicUrl });
+}));
 
 // Ejemplo de endpoint protegido: devuelve el perfil básico del usuario autenticado.
-fastify.get('/me', { preHandler: authenticate }, async (request, reply) => {
-  if (!request.user) {
-    reply.code(401);
-    return { error: 'Unauthorized' };
+app.get('/me', authenticate, (req, res) => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
-  return {
-    id: request.user.id,
-    email: request.user.email ?? null,
-  };
+  res.json({
+    id: req.user.id,
+    email: req.user.email ?? null,
+  });
 });
 
-async function start() {
-  try {
-    await fastify.listen({ port: PORT, host: '0.0.0.0' });
-    fastify.log.info(`Backend listening on http://localhost:${PORT}`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
+// Carrito persistente del usuario autenticado
+app.get('/me/cart', authenticate, asyncHandler(async (req, res) => {
+  const sb = userSupabase(req);
+  if (!sb || !req.user) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
   }
+
+  const { data, error } = await sb
+    .from('user_carts')
+    .select('items, updated_at')
+    .eq('user_id', req.user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching user cart', error);
+    res.status(500).json({ error: 'Error fetching cart' });
+    return;
+  }
+
+  res.json({
+    items: Array.isArray(data?.items) ? data?.items : [],
+    updated_at: data?.updated_at ?? null,
+  });
+}));
+
+app.put('/me/cart', authenticate, asyncHandler(async (req, res) => {
+  const sb = userSupabase(req);
+  if (!sb || !req.user) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+
+  const bodySchema = z.object({
+    items: z.array(z.unknown()).max(200),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid payload' });
+    return;
+  }
+
+  const { error } = await sb
+    .from('user_carts')
+    .upsert(
+      {
+        user_id: req.user.id,
+        items: parsed.data.items,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
+
+  if (error) {
+    console.error('Error saving user cart', error);
+    res.status(500).json({ error: 'Error saving cart' });
+    return;
+  }
+
+  res.json({ ok: true });
+}));
+
+// Pedidos del usuario autenticado
+app.get('/me/orders', authenticate, asyncHandler(async (req, res) => {
+  if (!supabase) {
+    res.status(500).json({ error: 'Supabase not configured' });
+    return;
+  }
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, status, delivery_type, delivery_address, branch_id, vendedor_code, items, created_at')
+    .eq('user_id', req.user.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) {
+    if (isMissingOrdersTableError(error)) {
+      // Si la migración de orders todavía no se aplicó, evitamos romper la cuenta del usuario.
+      res.json([]);
+      return;
+    }
+    console.error('Error fetching user orders', error);
+    res.status(500).json({ error: 'Error fetching orders' });
+    return;
+  }
+
+  res.json(data ?? []);
+}));
+
+// ─── Registro por email + envío de correo formal ───────────────────────
+async function findUserByEmail(email: string) {
+  if (!supabaseAdmin) return null;
+  const target = email.trim().toLowerCase();
+  const perPage = 200;
+
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.error('Error listing users for email lookup', error);
+      return null;
+    }
+    const users = data?.users ?? [];
+    const match = users.find((u) => (u.email ?? '').toLowerCase() === target);
+    if (match) return match;
+    if (users.length < perPage) break;
+  }
+  return null;
 }
 
-start();
+app.post('/auth/register/start', asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Supabase admin no está configurado (falta SUPABASE_SERVICE_ROLE_KEY)' });
+    return;
+  }
 
+  const bodySchema = z.object({
+    email: z.string().email().max(254),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Email inválido' });
+    return;
+  }
+  const email = parsed.data.email.trim().toLowerCase();
+
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    const hasPassword = Boolean(
+      (existing as unknown as { encrypted_password?: string }).encrypted_password
+    );
+    const confirmed = Boolean(existing.email_confirmed_at) && hasPassword;
+    if (confirmed) {
+      res.status(409).json({
+        error: 'Ya existe una cuenta con ese correo. Iniciá sesión o restablecé tu contraseña.',
+        code: 'user_exists',
+      });
+      return;
+    }
+  }
+
+  const redirectTo = `${frontendBaseFromRequest(req)}/registro/completar`;
+  const linkType = existing ? 'magiclink' : 'invite';
+
+  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    type: linkType as 'invite',
+    email,
+    options: { redirectTo },
+  });
+
+  if (linkError || !linkData) {
+    console.error('Error generating registration link', linkError);
+    res.status(500).json({ error: 'No se pudo generar el enlace de registro' });
+    return;
+  }
+
+  const actionLink = (linkData.properties as { action_link?: string } | null)?.action_link;
+  if (!actionLink) {
+    res.status(500).json({ error: 'Respuesta de Supabase sin enlace de acción' });
+    return;
+  }
+
+  try {
+    await sendInvitationEmail({ to: email, actionLink });
+  } catch (err) {
+    console.error('Error sending invitation email', err);
+    const rawMessage = err instanceof Error ? err.message : '';
+    const smtpResponse = typeof (err as { response?: unknown })?.response === 'string'
+      ? (err as { response: string }).response
+      : '';
+    const errorText = `${rawMessage} ${smtpResponse}`.toLowerCase();
+
+    if (errorText.includes('domain is not verified')) {
+      res.status(503).json({
+        error: 'El proveedor de correo requiere verificar el dominio remitente. Verificá el dominio en Resend y reintentá.',
+        code: 'email_domain_not_verified',
+      });
+      return;
+    }
+
+    if (errorText.includes('only send testing emails to your own email address')) {
+      res.status(503).json({
+        error: 'Tu SMTP está en modo testing y solo permite enviar al correo propietario. Verificá un dominio en Resend para enviar a terceros.',
+        code: 'email_testing_mode',
+      });
+      return;
+    }
+
+    if (errorText.includes('bad sender address syntax') || errorText.includes('mail from')) {
+      res.status(503).json({
+        error: 'El remitente SMTP_FROM tiene un formato inválido. Usá por ejemplo: Rebi Construcciones <onboarding@resend.dev>.',
+        code: 'email_invalid_sender',
+      });
+      return;
+    }
+
+    res.status(500).json({ error: 'No se pudo enviar el correo de activación. Intentá nuevamente en unos minutos.' });
+    return;
+  }
+
+  res.json({
+    ok: true,
+    emailDelivered: isEmailConfigured(),
+    message: isEmailConfigured()
+      ? 'Te enviamos un correo con un enlace para activar tu cuenta.'
+      : 'SMTP no configurado: revisá los logs del backend para obtener el enlace de activación.',
+  });
+}));
+
+app.post('/auth/register/start-whatsapp', asyncHandler(async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Supabase admin no está configurado (falta SUPABASE_SERVICE_ROLE_KEY)' });
+    return;
+  }
+
+  const bodySchema = z.object({
+    email: z.string().email().max(254).optional(),
+    whatsapp: z.string().min(7).max(30),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'WhatsApp inválido (y si enviás email, debe ser válido)' });
+    return;
+  }
+  const email = parsed.data.email?.trim().toLowerCase() || generatedEmailFromWhatsApp(parsed.data.whatsapp);
+  const whatsapp = parsed.data.whatsapp.trim();
+
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    const hasPassword = Boolean(
+      (existing as unknown as { encrypted_password?: string }).encrypted_password
+    );
+    const confirmed = Boolean(existing.email_confirmed_at) && hasPassword;
+    if (confirmed) {
+      res.status(409).json({
+        error: 'Ya existe una cuenta con ese correo. Iniciá sesión o restablecé tu contraseña.',
+        code: 'user_exists',
+      });
+      return;
+    }
+  }
+
+  const redirectTo = `${frontendBaseFromRequest(req)}/registro/completar`;
+  const linkType = existing ? 'magiclink' : 'invite';
+  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+    type: linkType as 'invite',
+    email,
+    options: { redirectTo },
+  });
+  if (linkError || !linkData) {
+    console.error('Error generating whatsapp registration link', linkError);
+    res.status(500).json({ error: 'No se pudo generar el enlace de registro' });
+    return;
+  }
+  const actionLink = (linkData.properties as { action_link?: string } | null)?.action_link;
+  if (!actionLink) {
+    res.status(500).json({ error: 'Respuesta de Supabase sin enlace de acción' });
+    return;
+  }
+  const activationLinkForWhatsApp = `${frontendBaseFromRequest(req)}/registro/completar?activate=${encodeURIComponent(actionLink)}`;
+
+  try {
+    await sendRegistrationWhatsApp({ to: whatsapp, email, actionLink: activationLinkForWhatsApp });
+  } catch (err) {
+    console.error('Error sending whatsapp registration message', err);
+    res.status(500).json({ error: 'No se pudo enviar el WhatsApp de activación. Revisá la configuración de Twilio.' });
+    return;
+  }
+
+  res.json({
+    ok: true,
+    whatsappDelivered: isWhatsAppConfigured(),
+    message: isWhatsAppConfigured()
+      ? 'Te enviamos un WhatsApp con el enlace para activar tu cuenta.'
+      : 'Twilio WhatsApp no configurado: revisá los logs del backend para obtener el enlace de activación.',
+  });
+}));
+
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Unhandled error', err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.info(`Backend listening on http://localhost:${PORT}`);
+});

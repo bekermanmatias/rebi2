@@ -4,68 +4,123 @@ import { supabaseAuthClient } from '../lib/authClient';
 type AuthState = {
   loading: boolean;
   email?: string | null;
+  displayName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
 };
+
+function splitName(fullName?: string | null, firstName?: string | null, lastName?: string | null) {
+  const first = (firstName || '').trim();
+  const last = (lastName || '').trim();
+  if (first && last) return { first, last };
+
+  const full = (fullName || '').trim();
+  if (!full) return { first: '', last: '' };
+
+  const parts = full.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { first: full, last: '' };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+function buildLoginHref() {
+  if (typeof window === 'undefined') return '/login';
+  const current = window.location.pathname + window.location.search;
+  return `/login?redirect=${encodeURIComponent(current || '/')}`;
+}
 
 export default function AuthButton() {
   const [state, setState] = useState<AuthState>({ loading: true });
+  const [loginHref, setLoginHref] = useState('/login');
 
   useEffect(() => {
+    setLoginHref(buildLoginHref());
+
     if (!supabaseAuthClient) {
-      setState({ loading: false });
+      setState({ loading: false, email: null, displayName: null });
       return;
     }
-    supabaseAuthClient.auth.getUser().then(({ data }) => {
-      setState({ loading: false, email: data.user?.email ?? null });
-    }).catch(() => setState({ loading: false }));
+
+    let mounted = true;
+
+    supabaseAuthClient.auth
+      .getUser()
+      .then(({ data }) => {
+        if (!mounted) return;
+        const user = data.user;
+        const fullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '';
+        const firstName = typeof user?.user_metadata?.first_name === 'string' ? user.user_metadata.first_name.trim() : '';
+        const lastName = typeof user?.user_metadata?.last_name === 'string' ? user.user_metadata.last_name.trim() : '';
+        const displayName = fullName || [firstName, lastName].filter(Boolean).join(' ') || (user?.email ?? null);
+        setState({ loading: false, email: user?.email ?? null, displayName, firstName, lastName });
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setState({ loading: false, email: null, displayName: null });
+      });
+
+    const { data: listener } = supabaseAuthClient.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      const user = session?.user;
+      const fullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '';
+      const firstName = typeof user?.user_metadata?.first_name === 'string' ? user.user_metadata.first_name.trim() : '';
+      const lastName = typeof user?.user_metadata?.last_name === 'string' ? user.user_metadata.last_name.trim() : '';
+      const displayName = fullName || [firstName, lastName].filter(Boolean).join(' ') || (user?.email ?? null);
+      setState({ loading: false, email: user?.email ?? null, displayName, firstName, lastName });
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  async function signInWithGoogle() {
-    if (!supabaseAuthClient) return;
-    await supabaseAuthClient.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-  }
-
-  async function signOut() {
-    if (!supabaseAuthClient) return;
-    await supabaseAuthClient.auth.signOut();
-    window.location.reload();
-  }
-
   if (state.loading) {
-    return (
-      <button className="rounded-full bg-gray-100 px-4 py-1.5 text-xs text-gray-500">
-        Cargando...
-      </button>
-    );
+    return <span className="text-sm text-gray-400">Cargando...</span>;
   }
 
   if (state.email) {
+    const split = splitName(state.displayName, state.firstName, state.lastName);
     return (
-      <div className="flex items-center gap-2">
-        <span className="hidden text-xs text-gray-700 sm:inline">
-          {state.email}
+      <a
+        href="/mi-cuenta"
+        className="flex items-center gap-2 text-sm font-bold text-gray-700 transition-colors hover:text-red-600"
+        aria-label="Mi Cuenta"
+      >
+        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+          />
+        </svg>
+        <span className="hidden lg:inline">
+          {split.first && split.last ? (
+            <span className="flex flex-col leading-tight">
+              <span>{split.first}</span>
+              <span>{split.last}</span>
+            </span>
+          ) : (
+            split.first || state.displayName || 'Mi Cuenta'
+          )}
         </span>
-        <button
-          onClick={signOut}
-          className="rounded-full border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100"
-        >
-          Salir
-        </button>
-      </div>
+      </a>
     );
   }
 
   return (
-    <button
-      onClick={signInWithGoogle}
-      className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-gray-800 shadow-sm ring-1 ring-gray-200 hover:bg-gray-50"
+    <a
+      href={loginHref}
+      className="flex items-center gap-2 text-sm font-bold text-gray-700 transition-colors hover:text-red-600"
+      aria-label="Ingresar"
     >
-      Ingresar
-    </button>
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+        />
+      </svg>
+      <span className="hidden lg:inline">Ingresar</span>
+    </a>
   );
 }
-

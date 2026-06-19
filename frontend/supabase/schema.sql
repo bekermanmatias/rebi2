@@ -71,6 +71,31 @@ CREATE TABLE IF NOT EXISTS home_banners (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Tabla de secciones destacadas del home
+CREATE TABLE IF NOT EXISTS home_feature_sections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT NOT NULL UNIQUE,
+  title TEXT,
+  image_url TEXT,
+  target_link TEXT,
+  tile_images TEXT[] NOT NULL DEFAULT '{}',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tabla de reseñas del home
+CREATE TABLE IF NOT EXISTS home_reviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  author_name TEXT NOT NULL,
+  review_text TEXT NOT NULL,
+  avatar_url TEXT,
+  attachment_url TEXT,
+  stars INT NOT NULL DEFAULT 5 CHECK (stars >= 1 AND stars <= 5),
+  display_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Tabla de órdenes
 CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -88,6 +113,24 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 
+-- Carrito persistente por usuario
+CREATE TABLE IF NOT EXISTS user_carts (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE user_carts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users read own cart" ON user_carts
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users insert own cart" ON user_carts
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users update own cart" ON user_carts
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users delete own cart" ON user_carts
+  FOR DELETE USING (auth.uid() = user_id);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id);
@@ -97,6 +140,8 @@ CREATE INDEX IF NOT EXISTS idx_products_featured ON products(is_featured) WHERE 
 CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_id);
 CREATE INDEX IF NOT EXISTS idx_home_banners_order ON home_banners(display_order) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_home_feature_sections_slug ON home_feature_sections(slug);
+CREATE INDEX IF NOT EXISTS idx_home_reviews_order ON home_reviews(display_order);
 
 -- RLS (Row Level Security)
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -105,6 +150,8 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_variants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE home_banners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE home_feature_sections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE home_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE promo_cards ENABLE ROW LEVEL SECURITY;
 
 -- Lectura pública
@@ -114,6 +161,8 @@ CREATE POLICY "Public read products" ON products FOR SELECT USING (true);
 CREATE POLICY "Public read product_images" ON product_images FOR SELECT USING (true);
 CREATE POLICY "Public read product_variants" ON product_variants FOR SELECT USING (true);
 CREATE POLICY "Public read home_banners" ON home_banners FOR SELECT USING (true);
+CREATE POLICY "Public read home_feature_sections" ON home_feature_sections FOR SELECT USING (true);
+CREATE POLICY "Public read home_reviews" ON home_reviews FOR SELECT USING (true);
 CREATE POLICY "Public read promo_cards" ON promo_cards FOR SELECT USING (true);
 
 -- Escritura (admin via anon key - temporal hasta implementar auth)
@@ -121,6 +170,8 @@ CREATE POLICY "Public write products" ON products FOR ALL USING (true) WITH CHEC
 CREATE POLICY "Public write product_images" ON product_images FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public write product_variants" ON product_variants FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public write home_banners" ON home_banners FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write home_feature_sections" ON home_feature_sections FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public write home_reviews" ON home_reviews FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public write promo_cards" ON promo_cards FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public write categories" ON categories FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public write brands" ON brands FOR ALL USING (true) WITH CHECK (true);
